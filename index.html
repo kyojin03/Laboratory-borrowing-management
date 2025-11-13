@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>GSC Laboratory Borrowing Dashboard</title>
+<style>
+  :root{--blue:#0057B8;--white:#FFFFFF;--pink:#FFC0CB;--peach:#FFDAB9;--muted:#666;--bg:#FAFCFF;--card:#FFFFFF;--radius:12px;}
+  body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);margin:0;color:#123}
+  header{background:var(--blue);color:var(--white);padding:18px 20px;display:flex;align-items:center;gap:12px}
+  header img{height:48px}
+  header h1{margin:0;font-size:20px}
+  .container{max-width:980px;margin:22px auto;padding:12px}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tab{padding:10px 14px;border-radius:8px;background:var(--white);cursor:pointer;color:var(--blue);font-weight:700;border:1px solid rgba(0,0,0,0.06)}
+  .tab.active{background:linear-gradient(90deg,var(--pink),var(--peach));color:var(--white);box-shadow:0 4px 14px rgba(0,0,0,0.08)}
+  .card{background:var(--card);border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+  input[type="text"], input[type="date"], select{padding:10px;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box}
+  .col{flex:1 1 220px;min-width:160px}
+  button{background:var(--blue);color:white;padding:10px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
+  .muted{color:var(--muted);font-size:13px}
+  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--muted)}
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+  .statbox{background:linear-gradient(90deg,var(--white),#f7f9ff);padding:16px;border-radius:8px;flex:1;min-width:180px;border:1px solid rgba(0,0,0,0.04)}
+  .center{text-align:center}
+  .small{font-size:13px;color:var(--muted)}
+  .success{background:#E6FFF2;border-left:4px solid #06A77D;padding:10px;border-radius:6px}
+  .error{background:#FFEEF0;border-left:4px solid #D32F2F;padding:10px;border-radius:6px}
+</style>
+</head>
+<body>
+<header>
+  <img src="GS.png" alt="GSC Logo" />
+  <h1>GSC Laboratory Borrowing Dashboard</h1>
+</header>
+
+<div class="container">
+  <div class="tabs" role="tablist">
+    <div class="tab active" data-tab="equipment">Equipment</div>
+    <div class="tab" data-tab="chemicals">Chemicals</div>
+    <div class="tab" data-tab="return">Return</div>
+    <div class="tab" data-tab="dashboard">Dashboard</div>
+  </div>
+
+  <div id="equipment" class="card view">
+    <h3>Equipment Reservation</h3>
+    <div class="muted">Status defaults to <strong>Borrowed</strong>.</div>
+    <form id="equipmentForm">
+      <div class="row" style="margin-top:12px">
+        <div class="col"><label>Name</label><input name="name" type="text" required></div>
+        <div class="col"><label>Subject</label><input name="subject" type="text"></div>
+        <div class="col"><label>Course</label><input name="course" type="text"></div>
+        <div class="col"><label>Department</label><input name="department" type="text"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="col"><label>Date Reserved</label><input name="dateReserved" type="date"></div>
+        <div class="col"><label>Date Borrowed</label><input name="dateBorrowed" type="date"></div>
+        <div class="col"><label>Equipment Name</label><input name="equipmentName" type="text" required></div>
+        <div class="col"><label>Status</label><select name="status"><option>Borrowed</option><option>Returned</option></select></div>
+      </div>
+      <div style="margin-top:12px"><button type="submit">Submit Reservation</button></div>
+      <div id="equipMsg" style="margin-top:10px"></div>
+    </form>
+  </div>
+
+  <div id="chemicals" class="card view" style="display:none">
+    <h3>Chemical / Reagent Request</h3>
+    <div class="muted">Only faculty name + date + chemical + qty are recorded.</div>
+    <form id="chemicalForm">
+      <div class="row" style="margin-top:12px">
+        <div class="col"><label>Faculty Name</label><input name="facultyName" type="text" required></div>
+        <div class="col"><label>Date Reserved</label><input name="dateReserved" type="date"></div>
+        <div class="col"><label>Chemical / Reagent Name</label><input name="chemicalName" type="text" required></div>
+        <div class="col"><label>Quantity</label><input name="quantity" type="text"></div>
+      </div>
+      <div style="margin-top:12px"><button type="submit">Submit Chemical Request</button></div>
+      <div id="chemMsg" style="margin-top:10px"></div>
+    </form>
+  </div>
+
+  <div id="return" class="card view" style="display:none">
+    <h3>Return Item</h3>
+    <div class="muted">Mark an equipment as returned.</div>
+    <form id="returnForm">
+      <div class="row" style="margin-top:12px">
+        <div class="col"><label>Name</label><input name="name" type="text" required></div>
+        <div class="col"><label>Equipment Name</label><input name="itemName" type="text" required></div>
+        <div class="col"><label>Date Returned</label><input name="dateReturned" type="date"></div>
+      </div>
+      <div style="margin-top:12px"><button type="submit">Submit Return</button></div>
+      <div id="returnMsg" style="margin-top:10px"></div>
+    </form>
+  </div>
+
+  <div id="dashboard" class="card view" style="display:none">
+    <h3>GSC Laboratory Borrowing Dashboard (Equipment & Chemicals)</h3>
+    <div class="stats">
+      <div class="statbox center">
+        <div class="small">Total Equipment Borrowed</div>
+        <div id="totalBorrowed" style="font-size:20px;font-weight:800">—</div>
+      </div>
+      <div class="statbox center">
+        <div class="small">Total Equipment Returned</div>
+        <div id="totalReturned" style="font-size:20px;font-weight:800">—</div>
+      </div>
+      <div class="statbox center">
+        <div class="small">Most Borrowed Equipment</div>
+        <div id="mostEquipment" style="font-size:18px;font-weight:700">—</div>
+      </div>
+      <div class="statbox center">
+        <div class="small">Total Chemicals Requested</div>
+        <div id="totalChem" style="font-size:20px;font-weight:800">—</div>
+      </div>
+      <div class="statbox center">
+        <div class="small">Most Requested Chemical</div>
+        <div id="mostChemical" style="font-size:18px;font-weight:700">—</div>
+      </div>
+    </div>
+    <div style="margin-top:14px" class="small">Credit: Laboratory Borrowing Management System 2025</div>
+  </div>
+
+  <div class="footer">
+    <div class="small">Public live app — Hosted via GitHub Pages</div>
+    <div class="small">Theme: GSC (Blue / White / Pink / Peach)</div>
+  </div>
+</div>
+
+<script>
+const SCRIPT_URL = "YOUR_SCRIPT_URL_HERE";
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick = ()=> {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const target = t.dataset.tab;
+    document.querySelectorAll('.view').forEach(v=>v.style.display='none');
+    document.getElementById(target).style.display = 'block';
+    if (target === 'dashboard') fetchStats();
+  };
+});
+
+async function postJSON(payload){
+  const res = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+document.getElementById('equipmentForm').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const payload = {
+    action: "submit",
+    type: "equipment",
+    payload: {
+      name: fd.get('name'),
+      subject: fd.get('subject'),
+      course: fd.get('course'),
+      department: fd.get('department'),
+      dateReserved: fd.get('dateReserved'),
+      dateBorrowed: fd.get('dateBorrowed'),
+      equipmentName: fd.get('equipmentName'),
+      status: fd.get('status')
+    }
+  };
+  try {
+    await postJSON(payload);
+    document.getElementById('equipMsg').innerHTML = '<div class="success">Reservation submitted.</div>';
+    ev.target.reset();
+  } catch(err){
+    document.getElementById('equipMsg').innerHTML = '<div class="error">Send failed.</div>';
+  }
+});
+
+document.getElementById('chemicalForm').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const payload = {
+    action: "submit",
+    type: "chemical",
+    payload: {
+      facultyName: fd.get('facultyName'),
+      dateReserved: fd.get('dateReserved'),
+      chemicalName: fd.get('chemicalName'),
+      quantity: fd.get('quantity'),
+      status: 'Used'
+    }
+  };
+  try {
+    await postJSON(payload);
+    document.getElementById('chemMsg').innerHTML = '<div class="success">Chemical request submitted.</div>';
+    ev.target.reset();
+  } catch(err){
+    document.getElementById('chemMsg').innerHTML = '<div class="error">Send failed.</div>';
+  }
+});
+
+document.getElementById('returnForm').addEventListener('submit', async (ev)=>{
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const payload = {
+    action: "return",
+    payload: {
+      name: fd.get('name'),
+      itemName: fd.get('itemName'),
+      dateReturned: fd.get('dateReturned')
+    }
+  };
+  try {
+    await postJSON(payload);
+    document.getElementById('returnMsg').innerHTML = '<div class="success">Return recorded (if matching reservation found).</div>';
+    ev.target.reset();
+  } catch(err){
+    document.getElementById('returnMsg').innerHTML = '<div class="error">Send failed.</div>';
+  }
+});
+
+async function fetchStats(){
+  try {
+    const url = SCRIPT_URL + "?action=stats";
+    const res = await fetch(url);
+    const data = await res.json();
+    document.getElementById('totalBorrowed').textContent = data.equipment.totalBorrowed;
+    document.getElementById('totalReturned').textContent = data.equipment.totalReturned;
+    document.getElementById('mostEquipment').textContent = data.equipment.mostBorrowedEquipment || '—';
+    document.getElementById('totalChem').textContent = data.chemicals.totalRequested;
+    document.getElementById('mostChemical').textContent = data.chemicals.mostRequestedChemical || '—';
+  } catch(err){
+    console.error(err);
+  }
+}
+
+fetchStats();
+</script>
+</body>
+</html>
