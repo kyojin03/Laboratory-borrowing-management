@@ -1,240 +1,1233 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>GSC Laboratory Borrowing Dashboard</title>
-<style>
-  :root{--blue:#0057B8;--white:#FFFFFF;--pink:#FFC0CB;--peach:#FFDAB9;--muted:#666;--bg:#FAFCFF;--card:#FFFFFF;--radius:12px;}
-  body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);margin:0;color:#123}
-  header{background:var(--blue);color:var(--white);padding:18px 20px;display:flex;align-items:center;gap:12px}
-  header img{height:48px}
-  header h1{margin:0;font-size:20px}
-  .container{max-width:980px;margin:22px auto;padding:12px}
-  .tabs{display:flex;gap:8px;margin-bottom:14px}
-  .tab{padding:10px 14px;border-radius:8px;background:var(--white);cursor:pointer;color:var(--blue);font-weight:700;border:1px solid rgba(0,0,0,0.06)}
-  .tab.active{background:linear-gradient(90deg,var(--pink),var(--peach));color:var(--white);box-shadow:0 4px 14px rgba(0,0,0,0.08)}
-  .card{background:var(--card);border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
-  .row{display:flex;gap:12px;flex-wrap:wrap}
-  label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
-  input[type="text"], input[type="date"], select{padding:10px;border-radius:8px;border:1px solid #ddd;width:100%;box-sizing:border-box}
-  .col{flex:1 1 220px;min-width:160px}
-  button{background:var(--blue);color:white;padding:10px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
-  .muted{color:var(--muted);font-size:13px}
-  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--muted)}
-  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
-  .statbox{background:linear-gradient(90deg,var(--white),#f7f9ff);padding:16px;border-radius:8px;flex:1;min-width:180px;border:1px solid rgba(0,0,0,0.04)}
-  .center{text-align:center}
-  .small{font-size:13px;color:var(--muted)}
-  .success{background:#E6FFF2;border-left:4px solid #06A77D;padding:10px;border-radius:6px}
-  .error{background:#FFEEF0;border-left:4px solid #D32F2F;padding:10px;border-radius:6px}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GSC Laboratory Borrower Slip</title>
+  <style>
+    :root{
+      --gsc-blue:#0B3D91;
+      --gsc-blue-2:#2563EB;
+      --bg-soft:#F5F7FF;
+      --card:#FFFFFF;
+      --text:#0F172A;
+      --muted:#64748B;
+      --border:#E2E8F0;
+      --danger:#B91C1C;
+      --ok:#065F46;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:var(--bg-soft);
+      color:var(--text);
+    }
+    header{
+      background:var(--gsc-blue);
+      color:#fff;
+      padding:16px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .brand .title{ font-size:18px; font-weight:900; letter-spacing:0.2px; }
+    .brand .sub{ font-size:12px; opacity:0.9; margin-top:2px; }
+    .pill{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:800;
+      background:rgba(255,255,255,0.16);
+      white-space:nowrap;
+    }
+
+    .wrap{ max-width:1100px; margin:16px auto 90px; padding:0 14px; display:grid; gap:12px; }
+    .tabs{
+      display:flex; gap:8px; flex-wrap:wrap;
+      background:var(--card); border:1px solid var(--border); border-radius:14px; padding:8px;
+      box-shadow: 0 2px 10px rgba(2,6,23,0.05);
+    }
+    .tab{
+      border:none; cursor:pointer;
+      padding:10px 12px; border-radius:12px;
+      font-weight:900; font-size:13px;
+      color:var(--gsc-blue);
+      background:transparent;
+    }
+    .tab.active{
+      background:rgba(37,99,235,0.10);
+      color:var(--gsc-blue);
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:14px;
+      box-shadow: 0 2px 10px rgba(2,6,23,0.05);
+    }
+    .row{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+    label{ font-size:12px; color:var(--muted); font-weight:800; }
+    .field{ display:flex; flex-direction:column; gap:6px; flex: 1 1 220px; }
+    input, select, textarea{
+      padding:10px 12px; border-radius:12px;
+      border:1px solid var(--border);
+      background:#fff;
+      outline:none;
+      width:100%;
+    }
+    textarea{ min-height: 80px; resize: vertical; }
+    input:focus, select:focus, textarea:focus{
+      border-color:var(--gsc-blue-2);
+      box-shadow:0 0 0 3px rgba(37,99,235,0.15);
+    }
+    .btn{
+      border:none; cursor:pointer;
+      padding:10px 14px; border-radius:12px;
+      font-weight:900;
+      background:var(--gsc-blue-2);
+      color:#fff;
+    }
+    .btn:hover{ filter:brightness(0.96); }
+    .btn.secondary{ background:#fff; color:var(--gsc-blue); border:1px solid var(--border); }
+    .btn.danger{ background:var(--danger); }
+    .btn:disabled{ opacity:0.6; cursor:not-allowed; }
+
+    .kpis{ display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:10px; }
+    @media (max-width: 900px){ .kpis{ grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .kpi{
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      background:#fff;
+    }
+    .kpi .label{ font-size:12px; color:var(--muted); font-weight:900; }
+    .kpi .val{ margin-top:6px; font-size:20px; font-weight:1000; color:var(--text); }
+    .kpi .hint{ margin-top:4px; font-size:12px; color:var(--muted); }
+
+    .table-wrap{ overflow:auto; border-radius:14px; border:1px solid var(--border); background:#fff; }
+    table{ width:100%; border-collapse:collapse; }
+    th, td{ padding:10px; border-bottom:1px solid var(--border); text-align:left; font-size:13px; }
+    th{ background:rgba(11,61,145,0.08); font-weight:1000; }
+    tr:nth-child(even) td{ background:#FAFBFF; }
+
+    .muted{ color:var(--muted); font-size:13px; }
+    .note{ font-size:12px; color:var(--muted); margin-top:8px; }
+    .ok{ color: var(--ok); font-weight: 900; }
+    .err{ color: var(--danger); font-weight: 900; }
+
+    footer{
+      position:fixed; right:14px; bottom:10px;
+      color:var(--muted); font-size:12px;
+      background:rgba(245,247,255,0.9);
+      padding:6px 10px; border:1px solid var(--border);
+      border-radius:999px;
+      backdrop-filter: blur(6px);
+    }
+
+    .toast{
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 18px;
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 900;
+      font-size: 13px;
+      display: none;
+      z-index: 9999;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+
+    /* Entry table inputs */
+    .entry-input{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      width:100%;
+      outline:none;
+      background:#fff;
+    }
+    .entry-input:focus{
+      border-color:var(--gsc-blue-2);
+      box-shadow:0 0 0 3px rgba(37,99,235,0.15);
+    }
+
+    /* Print */
+    @media print{
+      header, .tabs, .no-print, footer, .toast{ display:none !important; }
+      body{ background:#fff; }
+      .wrap{ margin:0; }
+      .card{ box-shadow:none; }
+    }
+  </style>
 </head>
+
 <body>
 <header>
-  <img src="GS.png" alt="GSC Logo" />
-  <h1>GSC Laboratory Borrowing Dashboard</h1>
+  <div class="brand">
+    <div class="title">Laboratory Borrower Slip</div>
+    <div class="sub">Good Samaritan Colleges • CAHP / CNAM</div>
+  </div>
+  <span class="pill">GSC • Blue &amp; White</span>
 </header>
 
-<div class="container">
-  <div class="tabs" role="tablist">
-    <div class="tab active" data-tab="equipment">Equipment</div>
-    <div class="tab" data-tab="chemicals">Chemicals</div>
-    <div class="tab" data-tab="return">Return</div>
-    <div class="tab" data-tab="dashboard">Dashboard</div>
-  </div>
+<div class="toast" id="toast"></div>
 
-  <div id="equipment" class="card view">
-    <h3>Equipment Reservation</h3>
-    <div class="muted">Status defaults to <strong>Borrowed</strong>.</div>
-    <form id="equipmentForm">
-      <div class="row" style="margin-top:12px">
-        <div class="col"><label>Name</label><input name="name" type="text" required></div>
-        <div class="col"><label>Subject</label><input name="subject" type="text"></div>
-        <div class="col"><label>Course</label><input name="course" type="text"></div>
-        <div class="col"><label>Department</label><input name="department" type="text"></div>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <div class="col"><label>Date Reserved</label><input name="dateReserved" type="date"></div>
-        <div class="col"><label>Date Borrowed</label><input name="dateBorrowed" type="date"></div>
-        <div class="col"><label>Equipment Name</label><input name="equipmentName" type="text" required></div>
-        <div class="col"><label>Status</label><select name="status"><option>Borrowed</option><option>Returned</option></select></div>
-      </div>
-      <div style="margin-top:12px"><button type="submit">Submit Reservation</button></div>
-      <div id="equipMsg" style="margin-top:10px"></div>
-    </form>
-  </div>
+<main class="wrap">
 
-  <div id="chemicals" class="card view" style="display:none">
-    <h3>Chemical / Reagent Request</h3>
-    <div class="muted">Only faculty name + date + chemical + qty are recorded.</div>
-    <form id="chemicalForm">
-      <div class="row" style="margin-top:12px">
-        <div class="col"><label>Faculty Name</label><input name="facultyName" type="text" required></div>
-        <div class="col"><label>Date Reserved</label><input name="dateReserved" type="date"></div>
-        <div class="col"><label>Chemical / Reagent Name</label><input name="chemicalName" type="text" required></div>
-        <div class="col"><label>Quantity</label><input name="quantity" type="text"></div>
-      </div>
-      <div style="margin-top:12px"><button type="submit">Submit Chemical Request</button></div>
-      <div id="chemMsg" style="margin-top:10px"></div>
-    </form>
-  </div>
+  <nav class="tabs no-print" aria-label="Navigation tabs">
+    <button class="tab active" data-tab="log">Log Borrower Slip</button>
+    <button class="tab" data-tab="logbook">Logbook</button>
+    <button class="tab" data-tab="reports">Reports</button>
+    <button class="tab" data-tab="incidents">Incidents</button>
+  </nav>
 
-  <div id="return" class="card view" style="display:none">
-    <h3>Return Item</h3>
-    <div class="muted">Mark an equipment as returned.</div>
-    <form id="returnForm">
-      <div class="row" style="margin-top:12px">
-        <div class="col"><label>Name</label><input name="name" type="text" required></div>
-        <div class="col"><label>Equipment Name</label><input name="itemName" type="text" required></div>
-        <div class="col"><label>Date Returned</label><input name="dateReturned" type="date"></div>
-      </div>
-      <div style="margin-top:12px"><button type="submit">Submit Return</button></div>
-      <div id="returnMsg" style="margin-top:10px"></div>
-    </form>
-  </div>
+  <!-- LOG TAB -->
+  <section class="card" id="tab-log">
+    <h3 style="margin:0 0 10px;">Log Borrower Slip</h3>
+    <div class="muted">This logs directly into your Google Form (no Apps Script). Timestamp is automatic.</div>
 
-  <div id="dashboard" class="card view" style="display:none">
-    <h3>GSC Laboratory Borrowing Dashboard (Equipment & Chemicals)</h3>
-    <div class="stats">
-      <div class="statbox center">
-        <div class="small">Total Equipment Borrowed</div>
-        <div id="totalBorrowed" style="font-size:20px;font-weight:800">—</div>
+    <div class="row" style="margin-top:12px;">
+      <div class="field">
+        <label>Department</label>
+        <select id="fDept">
+          <option value="CAHP">CAHP</option>
+          <option value="CNAM">CNAM</option>
+          <option value="JHS/SHS">JHS/SHS</option>
+        </select>
       </div>
-      <div class="statbox center">
-        <div class="small">Total Equipment Returned</div>
-        <div id="totalReturned" style="font-size:20px;font-weight:800">—</div>
+
+      <div class="field">
+        <label>Faculty Name</label>
+        <input id="fFaculty" placeholder="e.g., Juan Dela Cruz" />
       </div>
-      <div class="statbox center">
-        <div class="small">Most Borrowed Equipment</div>
-        <div id="mostEquipment" style="font-size:18px;font-weight:700">—</div>
-      </div>
-      <div class="statbox center">
-        <div class="small">Total Chemicals Requested</div>
-        <div id="totalChem" style="font-size:20px;font-weight:800">—</div>
-      </div>
-      <div class="statbox center">
-        <div class="small">Most Requested Chemical</div>
-        <div id="mostChemical" style="font-size:18px;font-weight:700">—</div>
+
+      <div class="field">
+        <label>Number of Groups Requested (optional)</label>
+        <input id="fGroups" type="number" min="1" placeholder="e.g., 5" />
       </div>
     </div>
-    <div style="margin-top:14px" class="small">Credit: Laboratory Borrowing Management System 2025</div>
-  </div>
 
-  <div class="footer">
-    <div class="small">Public live app — Hosted via GitHub Pages</div>
-    <div class="small">Theme: GSC (Blue / White / Pink / Peach)</div>
-  </div>
-</div>
+    <!-- TABLE INPUTS (Equipment + Consumables) -->
+    <div class="row" style="margin-top:10px;">
+      <div class="field" style="flex: 1 1 380px;">
+        <label>Equipment Borrowed (optional)</label>
+        <div class="table-wrap" style="margin-top:6px;">
+          <table id="equipEntryTable">
+            <thead>
+              <tr>
+                <th style="width:70%;">Equipment</th>
+                <th style="width:20%;">Qty</th>
+                <th class="no-print" style="width:10%;">&nbsp;</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="row no-print" style="margin-top:8px;">
+          <button class="btn secondary" type="button" id="addEquipRowBtn">+ Add equipment</button>
+        </div>
+
+        <!-- Hidden: still submitted to Google Form -->
+        <textarea id="fEquip" style="display:none;"></textarea>
+      </div>
+
+      <div class="field" style="flex: 1 1 380px;">
+        <label>Consumables Borrowed (optional)</label>
+        <div class="table-wrap" style="margin-top:6px;">
+          <table id="consEntryTable">
+            <thead>
+              <tr>
+                <th style="width:70%;">Consumable</th>
+                <th style="width:20%;">Qty</th>
+                <th class="no-print" style="width:10%;">&nbsp;</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="row no-print" style="margin-top:8px;">
+          <button class="btn secondary" type="button" id="addConsRowBtn">+ Add consumable</button>
+        </div>
+
+        <!-- Hidden: still submitted to Google Form -->
+        <textarea id="fCons" style="display:none;"></textarea>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <div class="field">
+        <label>Incident?</label>
+        <select id="fIncident">
+          <option value="no">no</option>
+          <option value="yes">yes</option>
+        </select>
+      </div>
+
+      <div class="field" id="incidentDetailsWrap" style="display:none;">
+        <label>Incident Details (required if yes)</label>
+        <input id="fIncidentDetails" placeholder="Describe the incident..." />
+      </div>
+    </div>
+
+    <div class="row no-print" style="margin-top:12px;">
+      <button class="btn" id="submitLogBtn">Submit Slip</button>
+      <button class="btn secondary" id="clearLogBtn">Clear</button>
+      <div class="muted" id="logStatus" style="align-self:center;"></div>
+    </div>
+
+    <div class="note">
+      Tip: You can leave Equipment empty and fill Consumables only (or vice versa). But at least one should be filled.
+    </div>
+
+    <!-- Hidden iframe target to submit Google Form without leaving page -->
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+  </section>
+
+  <!-- Top controls for logbook/reports/incidents -->
+  <section class="card no-print" id="dataControls">
+    <div class="row">
+      <button id="loadBtn" class="btn">Load / Refresh Data</button>
+      <button id="exportBtn" class="btn secondary" disabled>Export Current View (CSV)</button>
+      <button id="resetBtn" class="btn secondary" disabled>Reset Filters</button>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <div class="field">
+        <label>Department</label>
+        <select id="dept">
+          <option value="">All</option>
+          <option value="CAHP">CAHP</option>
+          <option value="CNAM">CNAM</option>
+          <option value="JHS/SHS">JHS/SHS</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Faculty (optional)</label>
+        <input id="faculty" placeholder="Type faculty name (partial ok)" list="facultyList" />
+        <datalist id="facultyList"></datalist>
+      </div>
+
+      <div class="field">
+        <label>From</label>
+        <input id="fromDate" type="date" />
+      </div>
+
+      <div class="field">
+        <label>To</label>
+        <input id="toDate" type="date" />
+      </div>
+
+      <button id="applyBtn" class="btn">Apply Filters</button>
+    </div>
+  </section>
+
+  <!-- KPI summary -->
+  <section class="card" id="kpiCard">
+    <div class="kpis">
+      <div class="kpi">
+        <div class="label">Records</div>
+        <div class="val" id="kpiRecords">—</div>
+        <div class="hint">Current view</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Incidents</div>
+        <div class="val" id="kpiIncidents">—</div>
+        <div class="hint">Incident = Yes</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Groups Requested (sum)</div>
+        <div class="val" id="kpiGroups">—</div>
+        <div class="hint">Blank ignored</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Departments split</div>
+        <div class="val" id="kpiDeptSplit">—</div>
+        <div class="hint">CAHP vs CNAM vs JHS/SHS</div>
+      </div>
+
+      <!-- NEW KPI tiles -->
+      <div class="kpi">
+        <div class="label">Equipment Used (qty)</div>
+        <div class="val" id="kpiEquipQty">—</div>
+        <div class="hint">Parsed from logs</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Consumables Used (qty)</div>
+        <div class="val" id="kpiConsQty">—</div>
+        <div class="hint">Parsed from logs</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Top Equipment</div>
+        <div class="val" id="kpiTopEquip">—</div>
+        <div class="hint">Most used item</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Top Consumable</div>
+        <div class="val" id="kpiTopCons">—</div>
+        <div class="hint">Most used item</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOGBOOK TAB -->
+  <section class="card" id="tab-logbook" style="display:none;">
+    <h3 style="margin:0 0 10px;">Logbook</h3>
+    <div class="muted" id="logbookHint">Load data to see records.</div>
+
+    <div class="table-wrap" style="margin-top:10px;">
+      <table id="table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- REPORTS TAB -->
+  <section class="card" id="tab-reports" style="display:none;">
+    <h3 style="margin:0 0 10px;">Reports</h3>
+
+    <div class="row no-print">
+      <div class="field">
+        <label>Report Period</label>
+        <select id="period">
+          <option value="monthly">Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="semiannual">Semi-Annual</option>
+          <option value="annual">Annual</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Month (for Monthly/Quarterly/Semi-Annual)</label>
+        <input id="monthPick" type="month" />
+      </div>
+
+      <button id="runReportBtn" class="btn">Run Report</button>
+      <button id="printBtn" class="btn secondary">Print Report</button>
+    </div>
+
+    <div class="note no-print">
+      Tip: Use <b>Department</b> and/or <b>Faculty</b> filters above to extract ALL or specific faculty.
+    </div>
+
+    <div style="margin-top:12px;" id="reportTitle" class="muted"></div>
+    <div id="reportFacultyPrint" style="margin-top:6px; font-weight:1000;"></div>
+
+    <div class="kpis" style="margin-top:10px;">
+      <div class="kpi">
+        <div class="label">Report Records</div>
+        <div class="val" id="rRecords">—</div>
+        <div class="hint">Within report range</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Report Incidents</div>
+        <div class="val" id="rIncidents">—</div>
+        <div class="hint">Within report range</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Groups Requested (sum)</div>
+        <div class="val" id="rGroups">—</div>
+        <div class="hint">Within report range</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Equipment / Consumables</div>
+        <div class="val" id="rEqCon">—</div>
+        <div class="hint">Count of non-empty fields</div>
+      </div>
+
+      <!-- report KPIs -->
+      <div class="kpi">
+        <div class="label">Equipment Used (qty)</div>
+        <div class="val" id="rEquipQty">—</div>
+        <div class="hint">Parsed from logs</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Consumables Used (qty)</div>
+        <div class="val" id="rConsQty">—</div>
+        <div class="hint">Parsed from logs</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Top Equipment</div>
+        <div class="val" id="rTopEquip">—</div>
+        <div class="hint">Most used</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Top Consumable</div>
+        <div class="val" id="rTopCons">—</div>
+        <div class="hint">Most used</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px; border-style:dashed;">
+      <div style="font-weight:1000;">Incidents (within report)</div>
+      <pre class="muted" id="incidentList" style="white-space:pre-wrap; margin:8px 0 0;">—</pre>
+    </div>
+
+    <!-- Most used tables -->
+    <div class="card" style="margin-top:12px;">
+      <div style="font-weight:1000;">Most Used Equipment (within report)</div>
+      <div class="table-wrap" style="margin-top:10px;">
+        <table id="equipReport">
+          <thead><tr><th>Equipment</th><th>Total Qty</th><th># Mentions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="note">Qty comes from patterns like <b>Beaker - 2</b> OR <b>Beaker 2</b>. If no number is found, it counts as 1.</div>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div style="font-weight:1000;">Most Used Consumables (within report)</div>
+      <div class="table-wrap" style="margin-top:10px;">
+        <table id="consReport">
+          <thead><tr><th>Consumable</th><th>Total Qty</th><th># Mentions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="note">Units (mL/box/pcs) are not standardized yet; totals are numeric-only.</div>
+    </div>
+  </section>
+
+  <!-- INCIDENTS TAB -->
+  <section class="card" id="tab-incidents" style="display:none;">
+    <h3 style="margin:0 0 10px;">Incidents</h3>
+    <div class="muted">Shows only rows where <b>Incident = Yes</b>.</div>
+
+    <div class="table-wrap" style="margin-top:10px;">
+      <table id="incTable">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>Developed by Piolo Bernardino — Laboratory Custodian</footer>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx_8GLE6WDVRrmU0MNxS-xWKYER6Og11qLCyXTTpDBQi3jBNuR2SQYJZfOg3xO-VrMI/exec";
+window.addEventListener("DOMContentLoaded", () => {
+  function normalizeName(s){
+    return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
 
-document.querySelectorAll('.tab').forEach(t=>{
-  t.onclick = ()=> {
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    const target = t.dataset.tab;
-    document.querySelectorAll('.view').forEach(v=>v.style.display='none');
-    document.getElementById(target).style.display = 'block';
-    if (target === 'dashboard') fetchStats();
+  function getUniqueFacultyNames(rows){
+    const set = new Set();
+    for (const r of rows){
+      const full = String(getField(r, "FacultyName", "FACULTY NAME", "Faculty Name") || "").trim();
+      if (full) set.add(full);
+    }
+    return [...set].sort((a,b) => a.localeCompare(b));
+  }
+
+  function populateFacultyDatalist(){
+    const dl = el("facultyList");
+    if (!dl) return;
+
+    dl.innerHTML = "";
+    const names = getUniqueFacultyNames(allRows);
+
+    names.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      dl.appendChild(opt);
+    });
+  }
+
+  function getBestFacultyFullName(query, rows){
+    const q = normalizeName(query);
+    if (!q) return "";
+
+    const counts = new Map(); // fullName -> count
+    for (const r of rows){
+      const full = String(getField(r, "FacultyName", "FACULTY NAME", "Faculty Name") || "").trim();
+      if (!full) continue;
+
+      const fullNorm = normalizeName(full);
+      if (fullNorm.includes(q)){
+        counts.set(full, (counts.get(full) || 0) + 1);
+      }
+    }
+
+    if (!counts.size) return "";
+
+    // Most frequent; tie-breaker: longest name (usually the complete one)
+    const sorted = [...counts.entries()].sort((a,b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return b[0].length - a[0].length;
+    });
+
+    return sorted[0][0];
+  }
+
+  function updateReportFacultyLine(){
+    const q = el("faculty").value.trim();
+    const best = getBestFacultyFullName(q, (viewRows && viewRows.length) ? viewRows : allRows);
+
+    el("reportFacultyPrint").textContent = q
+      ? `Faculty: ${best || q}`
+      : "";
+  }
+
+  /** ✅ Set your Google Sheet CSV link here (must end with pub?output=csv) */
+  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vStDm_fif_7EAGcuDY1tEhTjFgNoV3G1uZEXWB_eQkwNmprD9BYCWbugmCITEqviHPvNMYbXj7iIc4I/pub?output=csv";
+
+  /** ✅ Your Google Form backend */
+  const FORM_ID = "1FAIpQLSfUct13cYyqYuLEDSUoo-CAcl77faei_jwSCrsryzp_7T_x4A";
+  const FORM_POST_URL = "https://docs.google.com/forms/d/e/" + FORM_ID + "/formResponse";
+
+  /** Entry IDs from your prefilled link */
+  const ENTRY = {
+    Department: "entry.2142992831",
+    FacultyName: "entry.376247451",
+    GroupsRequested: "entry.2075140760",
+    EquipmentBorrowed: "entry.1288054742",
+    ConsumablesBorrowed: "entry.1746560168",
+    Incident: "entry.10980143",
+    IncidentDetails: "entry.2029578704",
   };
-});
 
-async function postJSON(payload){
-  const res = await fetch(SCRIPT_URL, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(payload)
+  let allRows = [];
+  let viewRows = [];
+  let headers = [];
+
+  const el = (id) => document.getElementById(id);
+
+  function toast(msg){
+    const t = el("toast");
+    t.textContent = msg;
+    t.style.display = "block";
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(() => t.style.display = "none", 2600);
+  }
+
+  function setActiveTab(tabName){
+    document.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tabName));
+    el("tab-log").style.display      = tabName === "log" ? "" : "none";
+    el("tab-logbook").style.display  = tabName === "logbook" ? "" : "none";
+    el("tab-reports").style.display  = tabName === "reports" ? "" : "none";
+    el("tab-incidents").style.display= tabName === "incidents" ? "" : "none";
+
+    const showData = (tabName !== "log");
+    el("dataControls").style.display = showData ? "" : "none";
+    el("kpiCard").style.display = showData ? "" : "none";
+  }
+
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let cur = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i + 1];
+
+      if (c === '"' && next === '"') { cur += '"'; i++; continue; }
+      if (c === '"') { inQuotes = !inQuotes; continue; }
+
+      if (!inQuotes && c === ",") { row.push(cur); cur = ""; continue; }
+      if (!inQuotes && (c === "\n" || c === "\r")) {
+        if (c === "\r" && next === "\n") i++;
+        row.push(cur); rows.push(row);
+        row = []; cur = "";
+        continue;
+      }
+      cur += c;
+    }
+    if (cur.length || row.length) { row.push(cur); rows.push(row); }
+    return rows.filter(r => r.some(cell => String(cell).trim() !== ""));
+  }
+
+  function rowsToObjects(parsed) {
+    headers = parsed[0].map(h => String(h || "").trim());
+    return parsed.slice(1).map(r => {
+      const obj = {};
+      headers.forEach((h, idx) => obj[h] = String(r[idx] ?? "").trim());
+      return obj;
+    });
+  }
+
+  function parseTimestamp(ts) {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function normalizeYes(v) {
+    return String(v || "").trim().toLowerCase().startsWith("y");
+  }
+  function getField(obj, ...keys) {
+    for (const k of keys) if (k in obj) return obj[k];
+    return "";
+  }
+
+  // =========================
+  // Entry tables (Log tab)
+  // =========================
+
+  function addEntryRow(tbodyEl, kind){
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td><input class="entry-input ${kind}-name" placeholder="${kind === "equip" ? "e.g., Microscope" : "e.g., Gloves"}" /></td>
+      <td><input class="entry-input ${kind}-qty" type="number" min="1" step="1" placeholder="1" /></td>
+      <td class="no-print">
+        <button type="button" class="btn danger ${kind}-remove" style="padding:8px 10px;">×</button>
+      </td>
+    `;
+
+    tr.querySelector(`.${kind}-remove`).addEventListener("click", () => tr.remove());
+    tbodyEl.appendChild(tr);
+  }
+
+  function tableToText(kind){
+    const tableId = kind === "equip" ? "equipEntryTable" : "consEntryTable";
+    const table = el(tableId);
+    const rows = [...table.querySelectorAll("tbody tr")];
+
+    const parts = [];
+    for (const r of rows){
+      const name = r.querySelector(`.${kind}-name`)?.value?.trim() || "";
+      const qtyRaw = r.querySelector(`.${kind}-qty`)?.value?.trim() || "";
+      const qty = Number(qtyRaw);
+
+      if (!name) continue;
+      const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+      parts.push(`${name} - ${safeQty}`);
+    }
+    return parts.join("; ");
+  }
+
+  function syncEntryTablesToHiddenTextareas(){
+    el("fEquip").value = tableToText("equip");
+    el("fCons").value  = tableToText("cons");
+  }
+
+  function clearEntryTables(){
+    el("equipEntryTable").querySelector("tbody").innerHTML = "";
+    el("consEntryTable").querySelector("tbody").innerHTML = "";
+  }
+
+  // =========================
+  // Parsing + aggregation for KPIs/Reports
+  // =========================
+
+  function normalizeItemName(s){
+    return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  function parseItemList(text){
+    const raw = String(text || "").trim();
+    if (!raw) return [];
+
+    const chunks = raw
+      .replace(/,/g, ";")
+      .split(/[\n;]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const items = [];
+
+    for (const chunk of chunks){
+      const explicit = chunk.match(/^(.+?)(?:\s*[-:=]\s*)(.+)$/);
+      if (explicit){
+        const nameRaw = explicit[1].trim();
+        const rhs = explicit[2].trim();
+        const qm = rhs.match(/^(\d+(?:\.\d+)?)/);
+        const qty = qm ? Number(qm[1]) : 1;
+
+        if (nameRaw){
+          items.push({
+            nameRaw,
+            nameKey: normalizeItemName(nameRaw),
+            qty: isFinite(qty) ? qty : 1,
+            unit: ""
+          });
+          continue;
+        }
+      }
+
+      const tokens = chunk.split(/\s+/).filter(Boolean);
+      let nameParts = [];
+      let foundAny = false;
+
+      for (const tok of tokens){
+        if (/^\d+(\.\d+)?$/.test(tok)){
+          const nameRaw = nameParts.join(" ").trim();
+          const qty = Number(tok);
+          if (nameRaw){
+            foundAny = true;
+            items.push({
+              nameRaw,
+              nameKey: normalizeItemName(nameRaw),
+              qty: isFinite(qty) ? qty : 1,
+              unit: ""
+            });
+          }
+          nameParts = [];
+        } else {
+          nameParts.push(tok);
+        }
+      }
+
+      const leftover = nameParts.join(" ").trim();
+      if (leftover){
+        items.push({
+          nameRaw: leftover,
+          nameKey: normalizeItemName(leftover),
+          qty: 1,
+          unit: ""
+        });
+      }
+
+      if (!foundAny && !leftover && chunk.trim()){
+        items.push({
+          nameRaw: chunk.trim(),
+          nameKey: normalizeItemName(chunk),
+          qty: 1,
+          unit: ""
+        });
+      }
+    }
+
+    return items;
+  }
+
+  function getEquipText(r){
+    return getField(r, "EquipmentBorrowed", "Equipment Borrowed", "Equipment Borrowed (optional)", "Equipment");
+  }
+  function getConsText(r){
+    return getField(r, "ConsumablesBorrowed", "Consumables Borrowed", "Consumables Borrowed (optional)", "Consumables");
+  }
+
+  function aggregateItemUsage(rows, type /* "equip"|"cons" */){
+    const qtyBy = new Map();
+    const mentionsBy = new Map();
+    const displayBy = new Map();
+
+    for (const r of rows){
+      const list = parseItemList(type === "equip" ? getEquipText(r) : getConsText(r));
+      for (const it of list){
+        if (!displayBy.has(it.nameKey)) displayBy.set(it.nameKey, it.nameRaw);
+        qtyBy.set(it.nameKey, (qtyBy.get(it.nameKey) || 0) + (it.qty || 0));
+        mentionsBy.set(it.nameKey, (mentionsBy.get(it.nameKey) || 0) + 1);
+      }
+    }
+
+    const items = [...qtyBy.keys()].map(k => ({
+      key: k,
+      name: displayBy.get(k) || k,
+      qty: qtyBy.get(k) || 0,
+      mentions: mentionsBy.get(k) || 0
+    }));
+
+    items.sort((a,b) => b.qty - a.qty);
+    const totalQty = items.reduce((acc, x) => acc + (x.qty || 0), 0);
+    return { items, totalQty, top: items[0] || null };
+  }
+
+  function renderTopTable(tableEl, items, maxRows = 15){
+    const tbody = tableEl.querySelector("tbody");
+    tbody.innerHTML = "";
+    const slice = items.slice(0, maxRows);
+
+    if (!slice.length){
+      tbody.innerHTML = `<tr><td colspan="3" class="muted">—</td></tr>`;
+      return;
+    }
+
+    slice.forEach(it => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${it.name}</td>
+        <td>${Number(it.qty || 0).toFixed(0)}</td>
+        <td>${it.mentions}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderTable(tableEl, rows) {
+    const thead = tableEl.querySelector("thead");
+    const tbody = tableEl.querySelector("tbody");
+    thead.innerHTML = "";
+    tbody.innerHTML = "";
+
+    const cols = headers.length ? headers : Object.keys(rows[0] || {});
+    const trh = document.createElement("tr");
+    cols.forEach(h => {
+      const th = document.createElement("th");
+      th.textContent = h;
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      cols.forEach(h => {
+        const td = document.createElement("td");
+        td.textContent = r[h] ?? "";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ===== kpisFor with JHS/SHS =====
+  function kpisFor(rows){
+    const total = rows.length;
+    const incidents = rows.filter(r => normalizeYes(getField(r, "Incident", "Incident?"))).length;
+    const groupsSum = rows.reduce((acc, r) => {
+      const v = Number(getField(r, "GroupsRequested", "Number of Groups Requested"));
+      return acc + (isFinite(v) ? v : 0);
+    }, 0);
+
+    const deptVal = (r) => getField(r,"Department").trim().toUpperCase();
+    const cahp = rows.filter(r => deptVal(r) === "CAHP").length;
+    const cnam = rows.filter(r => deptVal(r) === "CNAM").length;
+    const jhssh = rows.filter(r => deptVal(r) === "JHS/SHS").length;
+
+    return { total, incidents, groupsSum, cahp, cnam, jhssh };
+  }
+
+  function renderKpis(rows){
+    const { total, incidents, groupsSum, cahp, cnam, jhssh } = kpisFor(rows);
+    el("kpiRecords").textContent = total;
+    el("kpiIncidents").textContent = incidents;
+    el("kpiGroups").textContent = groupsSum;
+
+    const totalDept = cahp + cnam + jhssh;
+    const pct = (v) => totalDept ? Math.round((v / totalDept) * 100) : 0;
+
+    el("kpiDeptSplit").textContent =
+      `CAHP ${cahp} (${pct(cahp)}%) • ` +
+      `CNAM ${cnam} (${pct(cnam)}%) • ` +
+      `JHS/SHS ${jhssh} (${pct(jhssh)}%)`;
+
+    const eqAgg = aggregateItemUsage(rows, "equip");
+    const coAgg = aggregateItemUsage(rows, "cons");
+
+    el("kpiEquipQty").textContent = Number(eqAgg.totalQty || 0).toFixed(0);
+    el("kpiConsQty").textContent = Number(coAgg.totalQty || 0).toFixed(0);
+    el("kpiTopEquip").textContent = eqAgg.top ? `${eqAgg.top.name} (${Number(eqAgg.top.qty).toFixed(0)})` : "—";
+    el("kpiTopCons").textContent = coAgg.top ? `${coAgg.top.name} (${Number(coAgg.top.qty).toFixed(0)})` : "—";
+  }
+
+  function renderAll(){
+    el("exportBtn").disabled = viewRows.length === 0;
+    el("resetBtn").disabled = allRows.length === 0;
+
+    renderKpis(viewRows);
+
+    el("logbookHint").textContent =
+      allRows.length ? `Showing ${viewRows.length} record(s). Use filters above.` : "Load data to see records.";
+
+    renderTable(el("table"), viewRows);
+
+    const onlyInc = viewRows.filter(r => normalizeYes(getField(r, "Incident", "Incident?")));
+    renderTable(el("incTable"), onlyInc);
+  }
+
+  function applyFilters() {
+    const dept = el("dept").value.trim().toLowerCase();
+    const fac = el("faculty").value.trim().toLowerCase();
+    const from = el("fromDate").value ? new Date(el("fromDate").value) : null;
+    const to = el("toDate").value ? new Date(el("toDate").value) : null;
+    const toEnd = to ? new Date(to.getTime() + 24*60*60*1000 - 1) : null;
+
+    viewRows = allRows.filter(r => {
+      const rDept = getField(r, "Department").trim().toLowerCase();
+      const rFac  = getField(r, "FacultyName", "FACULTY NAME", "Faculty Name").trim().toLowerCase();
+      const d = parseTimestamp(getField(r, "Timestamp"));
+
+      if (dept && rDept !== dept) return false;
+      if (fac && !rFac.includes(fac)) return false;
+
+      if (from && d && d < from) return false;
+      if (toEnd && d && d > toEnd) return false;
+
+      return true;
+    });
+
+    renderAll();
+  }
+
+  function exportCSV(rows) {
+    const cols = headers.length ? headers : Object.keys(rows[0] || {});
+    const out = [cols];
+    rows.forEach(obj => out.push(cols.map(h => obj[h] ?? ""));
+
+    const csv = out.map(r => r.map(cell => {
+      const s = String(cell ?? "");
+      if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replaceAll('"','""')}"`;
+      return s;
+    }).join(",")).join("\n");
+
+    const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "gsc_borrower_export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function resetFilters(){
+    el("dept").value = "";
+    el("faculty").value = "";
+    el("fromDate").value = "";
+    el("toDate").value = "";
+    viewRows = [...allRows];
+    renderAll();
+  }
+
+  async function loadData(){
+    const btn = el("loadBtn");
+    btn.disabled = true;
+    btn.textContent = "Loading...";
+    try{
+      const url = CSV_URL + (CSV_URL.includes("?") ? "&" : "?") + "cb=" + Date.now();
+      const res = await fetch(url, { cache:"no-store" });
+      if (!res.ok) throw new Error("Failed to load CSV. Check if the sheet is published.");
+      const text = await res.text();
+      const parsed = parseCSV(text);
+      allRows = rowsToObjects(parsed);
+      viewRows = [...allRows];
+      renderAll();
+      populateFacultyDatalist();
+      updateReportFacultyLine();
+      toast("Data loaded.");
+    }catch(err){
+      alert(String(err));
+    }finally{
+      btn.disabled = false;
+      btn.textContent = "Load / Refresh Data";
+    }
+  }
+
+  function setIncidentUI(){
+    const yes = el("fIncident").value === "yes";
+    el("incidentDetailsWrap").style.display = yes ? "" : "none";
+    if (!yes) el("fIncidentDetails").value = "";
+  }
+
+  function clearLogForm(){
+    el("fDept").value = "CAHP";
+    el("fFaculty").value = "";
+    el("fGroups").value = "";
+    el("fEquip").value = "";
+    el("fCons").value = "";
+    el("fIncident").value = "no";
+    el("fIncidentDetails").value = "";
+    setIncidentUI();
+    el("logStatus").textContent = "";
+
+    clearEntryTables();
+    addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
+    addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
+  }
+
+  function submitLog(){
+    syncEntryTablesToHiddenTextareas();
+
+    const dept = el("fDept").value.trim();
+    const faculty = el("fFaculty").value.trim();
+    const groups = el("fGroups").value.trim();
+    const equip = el("fEquip").value.trim();
+    const cons = el("fCons").value.trim();
+    const incident = el("fIncident").value.trim();
+    const incidentDetails = el("fIncidentDetails").value.trim();
+
+    if (!faculty) { toast("Faculty Name is required."); return; }
+    if (!equip && !cons) { toast("Fill Equipment or Consumables (at least one)."); return; }
+    if (incident === "yes" && !incidentDetails) { toast("Incident Details is required if incident = yes."); return; }
+
+    const form = document.createElement("form");
+    form.action = FORM_POST_URL;
+    form.method = "POST";
+    form.target = "hidden_iframe";
+    form.style.display = "none";
+
+    const add = (name, value) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    };
+
+    add(ENTRY.Department, dept);
+    add(ENTRY.FacultyName, faculty);
+    add(ENTRY.GroupsRequested, groups);
+    add(ENTRY.EquipmentBorrowed, equip);
+    add(ENTRY.ConsumablesBorrowed, cons);
+    add(ENTRY.Incident, incident);
+    add(ENTRY.IncidentDetails, incidentDetails);
+
+    document.body.appendChild(form);
+
+    el("submitLogBtn").disabled = true;
+    el("logStatus").textContent = "Submitting...";
+
+    form.submit();
+
+    setTimeout(() => {
+      form.remove();
+      el("submitLogBtn").disabled = false;
+      el("logStatus").textContent = "Submitted ✅";
+      toast("Borrower slip submitted.");
+      clearLogForm();
+      setTimeout(() => loadData(), 2500);
+    }, 900);
+  }
+
+  // ========= Report range + report calculations =========
+
+  function startOfDay(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function endOfDay(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999); }
+
+  function reportRangeFromUI(){
+    const period = el("period").value;
+    const monthVal = el("monthPick").value;
+    if (!monthVal){
+      const from = el("fromDate").value ? new Date(el("fromDate").value) : null;
+      const to = el("toDate").value ? new Date(el("toDate").value) : null;
+      if (from && to) return { from: startOfDay(from), to: endOfDay(to), label: "Custom (From/To filters)" };
+      return { from: null, to: null, label: "All time (no month selected)" };
+    }
+
+    const [Y, M] = monthVal.split("-").map(Number);
+    const monthStart = new Date(Y, M-1, 1);
+    const monthEnd = new Date(Y, M, 0);
+
+    if (period === "monthly"){
+      return { from: startOfDay(monthStart), to: endOfDay(monthEnd), label: monthStart.toLocaleString(undefined,{month:"long",year:"numeric"}) };
+    }
+
+    if (period === "quarterly"){
+      const q = Math.floor((M-1)/3);
+      const qStartMonth = q*3;
+      const from = new Date(Y, qStartMonth, 1);
+      const to = new Date(Y, qStartMonth+3, 0);
+      return { from: startOfDay(from), to: endOfDay(to), label: `Q${q+1} ${Y}` };
+    }
+
+    if (period === "semiannual"){
+      const h = (M <= 6) ? 1 : 2;
+      const from = new Date(Y, h === 1 ? 0 : 6, 1);
+      const to = new Date(Y, h === 1 ? 6 : 12, 0);
+      return { from: startOfDay(from), to: endOfDay(to), label: `Semi-Annual (H${h}) ${Y}` };
+    }
+
+    const from = new Date(Y, 0, 1);
+    const to = new Date(Y, 12, 0);
+    return { from: startOfDay(from), to: endOfDay(to), label: `Annual ${Y}` };
+  }
+
+  function rowsInRange(rows, from, to){
+    if (!from || !to) return [...rows];
+    return rows.filter(r => {
+      const d = parseTimestamp(getField(r, "Timestamp"));
+      if (!d) return false;
+      return d >= from && d <= to;
+    });
+  }
+
+  function runReport(){
+    const { from, to, label } = reportRangeFromUI();
+    const base = [...viewRows];
+    const reportRows = rowsInRange(base, from, to);
+
+    el("reportTitle").textContent = `Report: ${label} • Records: ${reportRows.length}`;
+    updateReportFacultyLine();
+
+    const incidents = reportRows.filter(r => normalizeYes(getField(r, "Incident", "Incident?")));
+    const groupsSum = reportRows.reduce((acc, r) => {
+      const v = Number(getField(r, "GroupsRequested", "Number of Groups Requested"));
+      return acc + (isFinite(v) ? v : 0);
+    }, 0);
+
+    const eqNonEmpty = reportRows.filter(r => String(getEquipText(r)||"").trim() !== "").length;
+    const coNonEmpty = reportRows.filter(r => String(getConsText(r)||"").trim() !== "").length;
+
+    el("rRecords").textContent = reportRows.length;
+    el("rIncidents").textContent = incidents.length;
+    el("rGroups").textContent = groupsSum;
+    el("rEqCon").textContent = `${eqNonEmpty} / ${coNonEmpty}`;
+
+    if (!incidents.length){
+      el("incidentList").textContent = "—";
+    }else{
+      el("incidentList").textContent = incidents.map(r => {
+        const ts = getField(r,"Timestamp");
+        const dept = getField(r,"Department");
+        const fac = getField(r,"FacultyName","Faculty Name","FACULTY NAME");
+        const det = getField(r,"IncidentDetails","Incident Details","Incident Details (required if yes)") || "(no details)";
+        return `• ${ts} • ${dept} • ${fac} — ${det}`;
+      }).join("\n");
+    }
+
+    const eqAgg = aggregateItemUsage(reportRows, "equip");
+    const coAgg = aggregateItemUsage(reportRows, "cons");
+
+    el("rEquipQty").textContent = Number(eqAgg.totalQty || 0).toFixed(0);
+    el("rConsQty").textContent = Number(coAgg.totalQty || 0).toFixed(0);
+    el("rTopEquip").textContent = eqAgg.top ? `${eqAgg.top.name} (${Number(eqAgg.top.qty).toFixed(0)})` : "—";
+    el("rTopCons").textContent = coAgg.top ? `${coAgg.top.name} (${Number(coAgg.top.qty).toFixed(0)})` : "—";
+
+    renderTopTable(el("equipReport"), eqAgg.items, 15);
+    renderTopTable(el("consReport"), coAgg.items, 15);
+
+    toast("Report generated.");
+  }
+
+  // ✅ Wire up tab clicks
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
   });
-  return res.json();
-}
 
-document.getElementById('equipmentForm').addEventListener('submit', async (ev)=>{
-  ev.preventDefault();
-  const fd = new FormData(ev.target);
-  const payload = {
-    action: "submit",
-    type: "equipment",
-    payload: {
-      name: fd.get('name'),
-      subject: fd.get('subject'),
-      course: fd.get('course'),
-      department: fd.get('department'),
-      dateReserved: fd.get('dateReserved'),
-      dateBorrowed: fd.get('dateBorrowed'),
-      equipmentName: fd.get('equipmentName'),
-      status: fd.get('status')
-    }
-  };
-  try {
-    await postJSON(payload);
-    document.getElementById('equipMsg').innerHTML = '<div class="success">Reservation submitted.</div>';
-    ev.target.reset();
-  } catch(err){
-    document.getElementById('equipMsg').innerHTML = '<div class="error">Send failed.</div>';
-  }
+  // Buttons
+  el("loadBtn").addEventListener("click", loadData);
+  el("applyBtn").addEventListener("click", applyFilters);
+  el("faculty").addEventListener("input", updateReportFacultyLine);
+  el("exportBtn").addEventListener("click", () => exportCSV(viewRows));
+  el("resetBtn").addEventListener("click", resetFilters);
+  el("fIncident").addEventListener("change", setIncidentUI);
+  el("submitLogBtn").addEventListener("click", submitLog);
+  el("clearLogBtn").addEventListener("click", clearLogForm);
+
+  // Reports: auto-apply filters before running
+  el("runReportBtn").addEventListener("click", () => {
+    applyFilters();
+    runReport();
+  });
+
+  el("printBtn").addEventListener("click", () => window.print());
+
+  // add-row buttons for entry tables
+  el("addEquipRowBtn").addEventListener("click", () => {
+    addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
+  });
+  el("addConsRowBtn").addEventListener("click", () => {
+    addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
+  });
+
+  // Init
+  setIncidentUI();
+  setActiveTab("log");
+
+  addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
+  addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
+
+  loadData();
 });
-
-document.getElementById('chemicalForm').addEventListener('submit', async (ev)=>{
-  ev.preventDefault();
-  const fd = new FormData(ev.target);
-  const payload = {
-    action: "submit",
-    type: "chemical",
-    payload: {
-      facultyName: fd.get('facultyName'),
-      dateReserved: fd.get('dateReserved'),
-      chemicalName: fd.get('chemicalName'),
-      quantity: fd.get('quantity'),
-      status: 'Used'
-    }
-  };
-  try {
-    await postJSON(payload);
-    document.getElementById('chemMsg').innerHTML = '<div class="success">Chemical request submitted.</div>';
-    ev.target.reset();
-  } catch(err){
-    document.getElementById('chemMsg').innerHTML = '<div class="error">Send failed.</div>';
-  }
-});
-
-document.getElementById('returnForm').addEventListener('submit', async (ev)=>{
-  ev.preventDefault();
-  const fd = new FormData(ev.target);
-  const payload = {
-    action: "return",
-    payload: {
-      name: fd.get('name'),
-      itemName: fd.get('itemName'),
-      dateReturned: fd.get('dateReturned')
-    }
-  };
-  try {
-    await postJSON(payload);
-    document.getElementById('returnMsg').innerHTML = '<div class="success">Return recorded (if matching reservation found).</div>';
-    ev.target.reset();
-  } catch(err){
-    document.getElementById('returnMsg').innerHTML = '<div class="error">Send failed.</div>';
-  }
-});
-
-async function fetchStats(){
-  try {
-    const url = SCRIPT_URL + "?action=stats";
-    const res = await fetch(url);
-    const data = await res.json();
-    document.getElementById('totalBorrowed').textContent = data.equipment.totalBorrowed;
-    document.getElementById('totalReturned').textContent = data.equipment.totalReturned;
-    document.getElementById('mostEquipment').textContent = data.equipment.mostBorrowedEquipment || '—';
-    document.getElementById('totalChem').textContent = data.chemicals.totalRequested;
-    document.getElementById('mostChemical').textContent = data.chemicals.mostRequestedChemical || '—';
-  } catch(err){
-    console.error(err);
-  }
-}
-
-fetchStats();
 </script>
+
 </body>
 </html>
