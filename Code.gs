@@ -102,9 +102,11 @@ function validateSubmission_(payload) {
     if (section[0] != null && !Array.isArray(section[0])) throw new Error("Invalid item section.");
     (section[0] || []).forEach(function(raw) {
       const itemName = safeSheetText_(normalizeText_(raw && raw.itemName, MAX_LENGTHS.itemName));
-      const unit = safeSheetText_(normalizeText_(raw && raw.unit, MAX_LENGTHS.unit));
+      let unit = safeSheetText_(normalizeText_(raw && raw.unit, MAX_LENGTHS.unit));
       const quantity = Number(raw && raw.quantity);
-      if (!itemName || !unit || !isFinite(quantity) || quantity <= 0 || quantity > MAX_QUANTITY) throw new Error("Each item requires a name, positive finite quantity, and unit.");
+      const isEquipment = section[1] === "Equipment";
+      if (!itemName || (!isEquipment && !unit) || !isFinite(quantity) || quantity <= 0 || quantity > MAX_QUANTITY || (isEquipment && Math.floor(quantity) !== quantity)) throw new Error(isEquipment ? "Each equipment item requires a name and positive whole-number quantity." : "Each consumable item requires a name, positive finite quantity, and unit.");
+      if (isEquipment) unit = "";
       items.push({ itemName: itemName, category: section[1], quantity: quantity, unit: unit });
     });
   });

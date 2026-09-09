@@ -231,9 +231,8 @@
           <table id="equipEntryTable">
             <thead>
               <tr>
-                <th style="width:55%;">Equipment</th>
-                <th style="width:15%;">Qty</th>
-                <th style="width:20%;">Unit</th>
+                <th style="width:70%;">Equipment</th>
+                <th style="width:20%;">Qty</th>
                 <th class="no-print" style="width:10%;">&nbsp;</th>
               </tr>
             </thead>
@@ -639,16 +638,11 @@ window.addEventListener("DOMContentLoaded", () => {
     const quantity = document.createElement("input");
     quantity.className = `entry-input ${kind}-qty`;
     quantity.type = "number";
-    quantity.min = "0.01";
-    quantity.step = "any";
+    quantity.min = kind === "equip" ? "1" : "0.01";
+    quantity.step = kind === "equip" ? "1" : "any";
     quantity.placeholder = "Qty";
     quantityCell.appendChild(quantity);
 
-    const unitCell = document.createElement("td");
-    const unit = document.createElement("input");
-    unit.className = `entry-input ${kind}-unit`;
-    unit.placeholder = "e.g., pcs, mL, g";
-    unitCell.appendChild(unit);
     const removeCell = document.createElement("td");
     removeCell.className = "no-print";
     const remove = document.createElement("button");
@@ -657,7 +651,16 @@ window.addEventListener("DOMContentLoaded", () => {
     remove.textContent = "×";
     remove.addEventListener("click", () => tr.remove());
     removeCell.appendChild(remove);
-    tr.append(itemCell, quantityCell, unitCell, removeCell);
+    if (kind === "cons") {
+      const unitCell = document.createElement("td");
+      const unit = document.createElement("input");
+      unit.className = "entry-input cons-unit";
+      unit.placeholder = "e.g., pcs, mL, g";
+      unitCell.appendChild(unit);
+      tr.append(itemCell, quantityCell, unitCell, removeCell);
+    } else {
+      tr.append(itemCell, quantityCell, removeCell);
+    }
     tbodyEl.appendChild(tr);
   }
 
@@ -668,10 +671,11 @@ window.addEventListener("DOMContentLoaded", () => {
       el(tableId).querySelectorAll("tbody tr").forEach(row => {
         const itemName = row.querySelector(`.${kind}-item`).value.trim();
         const quantityRaw = row.querySelector(`.${kind}-qty`).value.trim();
-        const unit = row.querySelector(`.${kind}-unit`).value.trim();
+        const unit = kind === "cons" ? row.querySelector(".cons-unit").value.trim() : "";
         if (!itemName && !quantityRaw && !unit) return;
         const quantity = Number(quantityRaw);
-        if (!itemName || !unit || !Number.isFinite(quantity) || quantity <= 0) throw new Error("Each completed item row needs a name, positive quantity, and unit.");
+        const wholeEquipmentQuantity = kind === "equip" && Math.floor(quantity) !== quantity;
+        if (!itemName || (kind === "cons" && !unit) || !Number.isFinite(quantity) || quantity <= 0 || wholeEquipmentQuantity) throw new Error(kind === "equip" ? "Each equipment row needs a name and positive whole-number quantity." : "Each consumable row needs a name, positive quantity, and unit.");
         sections[kind === "equip" ? "equipment" : "consumables"].push({ itemName, quantity, unit });
       });
     }
