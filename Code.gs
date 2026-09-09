@@ -1,5 +1,5 @@
 /** GSC Laboratory Borrowing Web App API. Configure before deployment. */
-const CONFIG = { SPREADSHEET_ID: "PUT_SPREADSHEET_ID_HERE", TIMEZONE: "Asia/Manila", LOG_SHEET: "BorrowerLogs", BORROWED_ITEMS_SHEET: "BorrowedItems" };
+const CONFIG = { SPREADSHEET_ID: "1d9qdSVwM8JyNu3WakWAEri4z3AspLYz5iPvsWX1FaG4", TIMEZONE: "Asia/Manila", LOG_SHEET: "BorrowerLogs", BORROWED_ITEMS_SHEET: "BorrowedItems" };
 const LOG_HEADERS = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "Incident", "IncidentDetails"];
 const BORROWED_ITEM_HEADERS = ["ItemLogID", "LogID", "ItemName", "Category", "Quantity", "Unit"];
 const VALID_DEPARTMENTS = ["CAHP", "CNAM", "JHS", "SHS"];

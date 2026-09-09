@@ -23,7 +23,7 @@ Units are free text and may be any nonblank value. New departments are `CAHP`, `
 
 1. Create or select the Google Spreadsheet and copy its ID from the URL.
 2. Open **Extensions -> Apps Script** and paste [Code.gs](Code.gs).
-3. Set `CONFIG.SPREADSHEET_ID`; do not commit a real ID.
+3. Set `CONFIG.SPREADSHEET_ID` to the intended production spreadsheet ID. This ID is application configuration, not an authentication credential.
 4. Run `setupDatabase()` once and authorize it. It creates and formats missing sheets, including frozen/styled header rows, text/number/date formats, and the `Asia/Manila` spreadsheet timezone.
 5. Run `getDatabaseStatus()` and confirm both sheets exist and have valid headers.
 6. Deploy **New deployment -> Web app**, execute as **Me**, and select access appropriate for the intended users.
