@@ -157,6 +157,14 @@
       border-color:var(--gsc-blue-2);
       box-shadow:0 0 0 3px rgba(37,99,235,0.15);
     }
+    .section-title{ margin:0 0 10px; }
+    .spaced-row{ margin-top:10px; }
+    .spaced-row-lg{ margin-top:12px; }
+    .entry-field{ flex:1 1 380px; }
+    .table-gap{ margin-top:6px; }
+    .button-row{ margin-top:8px; }
+    .hidden{ display:none; }
+    .status{ align-self:center; }
 
     /* Print */
     @media print{
@@ -172,7 +180,7 @@
 <header>
   <div class="brand">
     <div class="title">Laboratory Borrower Slip</div>
-    <div class="sub">Good Samaritan Colleges • CAHP / CNAM</div>
+    <div class="sub">Good Samaritan Colleges • CAHP / CNAM / JHS / SHS</div>
   </div>
   <span class="pill">GSC • Blue &amp; White</span>
 </header>
@@ -190,8 +198,8 @@
 
   <!-- LOG TAB -->
   <section class="card" id="tab-log">
-    <h3 style="margin:0 0 10px;">Log Borrower Slip</h3>
-    <div class="muted">This logs directly into your Google Form (no Apps Script). Timestamp is automatic.</div>
+    <h3 class="section-title">Log Borrower Slip</h3>
+    <div class="muted">Submissions are recorded through the laboratory Web App. Timestamp is automatic.</div>
 
     <div class="row" style="margin-top:12px;">
       <div class="field">
@@ -199,7 +207,8 @@
         <select id="fDept">
           <option value="CAHP">CAHP</option>
           <option value="CNAM">CNAM</option>
-          <option value="JHS/SHS">JHS/SHS</option>
+          <option value="JHS">JHS</option>
+          <option value="SHS">SHS</option>
         </select>
       </div>
 
@@ -234,8 +243,7 @@
           <button class="btn secondary" type="button" id="addEquipRowBtn">+ Add equipment</button>
         </div>
 
-        <!-- Hidden: still submitted to Google Form -->
-        <textarea id="fEquip" style="display:none;"></textarea>
+        <textarea id="fEquip" class="hidden" aria-hidden="true"></textarea>
       </div>
 
       <div class="field" style="flex: 1 1 380px;">
@@ -256,8 +264,7 @@
           <button class="btn secondary" type="button" id="addConsRowBtn">+ Add consumable</button>
         </div>
 
-        <!-- Hidden: still submitted to Google Form -->
-        <textarea id="fCons" style="display:none;"></textarea>
+        <textarea id="fCons" class="hidden" aria-hidden="true"></textarea>
       </div>
     </div>
 
@@ -286,8 +293,6 @@
       Tip: You can leave Equipment empty and fill Consumables only (or vice versa). But at least one should be filled.
     </div>
 
-    <!-- Hidden iframe target to submit Google Form without leaving page -->
-    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
   </section>
 
   <!-- Top controls for logbook/reports/incidents -->
@@ -302,10 +307,11 @@
       <div class="field">
         <label>Department</label>
         <select id="dept">
-          <option value="">All</option>
+          <option value="">All Departments</option>
           <option value="CAHP">CAHP</option>
           <option value="CNAM">CNAM</option>
-          <option value="JHS/SHS">JHS/SHS</option>
+          <option value="JHS">JHS</option>
+          <option value="SHS">SHS</option>
         </select>
       </div>
 
@@ -350,7 +356,7 @@
       <div class="kpi">
         <div class="label">Departments split</div>
         <div class="val" id="kpiDeptSplit">—</div>
-        <div class="hint">CAHP vs CNAM vs JHS/SHS</div>
+        <div class="hint">New departments plus legacy records</div>
       </div>
 
       <!-- NEW KPI tiles -->
@@ -576,23 +582,8 @@ window.addEventListener("DOMContentLoaded", () => {
       : "";
   }
 
-  /** ✅ Set your Google Sheet CSV link here (must end with pub?output=csv) */
-  const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vStDm_fif_7EAGcuDY1tEhTjFgNoV3G1uZEXWB_eQkwNmprD9BYCWbugmCITEqviHPvNMYbXj7iIc4I/pub?output=csv";
-
-  /** ✅ Your Google Form backend */
-  const FORM_ID = "1FAIpQLSfUct13cYyqYuLEDSUoo-CAcl77faei_jwSCrsryzp_7T_x4A";
-  const FORM_POST_URL = "https://docs.google.com/forms/d/e/" + FORM_ID + "/formResponse";
-
-  /** Entry IDs from your prefilled link */
-  const ENTRY = {
-    Department: "entry.2142992831",
-    FacultyName: "entry.376247451",
-    GroupsRequested: "entry.2075140760",
-    EquipmentBorrowed: "entry.1288054742",
-    ConsumablesBorrowed: "entry.1746560168",
-    Incident: "entry.10980143",
-    IncidentDetails: "entry.2029578704",
-  };
+  // Paste the deployed Apps Script Web App /exec URL here after deployment.
+  const API_URL = "PUT_APPS_SCRIPT_EXEC_URL_HERE";
 
   let allRows = [];
   let viewRows = [];
@@ -618,41 +609,6 @@ window.addEventListener("DOMContentLoaded", () => {
     const showData = (tabName !== "log");
     el("dataControls").style.display = showData ? "" : "none";
     el("kpiCard").style.display = showData ? "" : "none";
-  }
-
-  function parseCSV(text) {
-    const rows = [];
-    let row = [];
-    let cur = "";
-    let inQuotes = false;
-
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      const next = text[i + 1];
-
-      if (c === '"' && next === '"') { cur += '"'; i++; continue; }
-      if (c === '"') { inQuotes = !inQuotes; continue; }
-
-      if (!inQuotes && c === ",") { row.push(cur); cur = ""; continue; }
-      if (!inQuotes && (c === "\n" || c === "\r")) {
-        if (c === "\r" && next === "\n") i++;
-        row.push(cur); rows.push(row);
-        row = []; cur = "";
-        continue;
-      }
-      cur += c;
-    }
-    if (cur.length || row.length) { row.push(cur); rows.push(row); }
-    return rows.filter(r => r.some(cell => String(cell).trim() !== ""));
-  }
-
-  function rowsToObjects(parsed) {
-    headers = parsed[0].map(h => String(h || "").trim());
-    return parsed.slice(1).map(r => {
-      const obj = {};
-      headers.forEach((h, idx) => obj[h] = String(r[idx] ?? "").trim());
-      return obj;
-    });
   }
 
   function parseTimestamp(ts) {
@@ -879,7 +835,6 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // ===== kpisFor with JHS/SHS =====
   function kpisFor(rows){
     const total = rows.length;
     const incidents = rows.filter(r => normalizeYes(getField(r, "Incident", "Incident?"))).length;
@@ -891,24 +846,26 @@ window.addEventListener("DOMContentLoaded", () => {
     const deptVal = (r) => getField(r,"Department").trim().toUpperCase();
     const cahp = rows.filter(r => deptVal(r) === "CAHP").length;
     const cnam = rows.filter(r => deptVal(r) === "CNAM").length;
-    const jhssh = rows.filter(r => deptVal(r) === "JHS/SHS").length;
+    const jhs = rows.filter(r => deptVal(r) === "JHS").length;
+    const shs = rows.filter(r => deptVal(r) === "SHS").length;
+    const legacyJhssh = rows.filter(r => deptVal(r) === "JHS/SHS").length;
 
-    return { total, incidents, groupsSum, cahp, cnam, jhssh };
+    return { total, incidents, groupsSum, cahp, cnam, jhs, shs, legacyJhssh };
   }
 
   function renderKpis(rows){
-    const { total, incidents, groupsSum, cahp, cnam, jhssh } = kpisFor(rows);
+    const { total, incidents, groupsSum, cahp, cnam, jhs, shs, legacyJhssh } = kpisFor(rows);
     el("kpiRecords").textContent = total;
     el("kpiIncidents").textContent = incidents;
     el("kpiGroups").textContent = groupsSum;
 
-    const totalDept = cahp + cnam + jhssh;
+    const totalDept = cahp + cnam + jhs + shs + legacyJhssh;
     const pct = (v) => totalDept ? Math.round((v / totalDept) * 100) : 0;
 
     el("kpiDeptSplit").textContent =
-      `CAHP ${cahp} (${pct(cahp)}%) • ` +
-      `CNAM ${cnam} (${pct(cnam)}%) • ` +
-      `JHS/SHS ${jhssh} (${pct(jhssh)}%)`;
+      `CAHP ${cahp} (${pct(cahp)}%) • CNAM ${cnam} (${pct(cnam)}%) • ` +
+      `JHS ${jhs} (${pct(jhs)}%) • SHS ${shs} (${pct(shs)}%)` +
+      (legacyJhssh ? ` • Legacy JHS/SHS ${legacyJhssh} (${pct(legacyJhssh)}%)` : "");
 
     const eqAgg = aggregateItemUsage(rows, "equip");
     const coAgg = aggregateItemUsage(rows, "cons");
@@ -961,7 +918,7 @@ window.addEventListener("DOMContentLoaded", () => {
   function exportCSV(rows) {
     const cols = headers.length ? headers : Object.keys(rows[0] || {});
     const out = [cols];
-    rows.forEach(obj => out.push(cols.map(h => obj[h] ?? ""));
+    rows.forEach(obj => out.push(cols.map(h => obj[h] ?? "")));
 
     const csv = out.map(r => r.map(cell => {
       const s = String(cell ?? "");
@@ -992,12 +949,13 @@ window.addEventListener("DOMContentLoaded", () => {
     btn.disabled = true;
     btn.textContent = "Loading...";
     try{
-      const url = CSV_URL + (CSV_URL.includes("?") ? "&" : "?") + "cb=" + Date.now();
-      const res = await fetch(url, { cache:"no-store" });
-      if (!res.ok) throw new Error("Failed to load CSV. Check if the sheet is published.");
-      const text = await res.text();
-      const parsed = parseCSV(text);
-      allRows = rowsToObjects(parsed);
+      ensureApiConfigured();
+      const res = await fetch(`${API_URL}?action=list`, { cache:"no-store" });
+      if (!res.ok) throw new Error("The API could not load borrower records.");
+      const result = await res.json();
+      if (result.status !== "success" || !Array.isArray(result.data)) throw new Error(result.message || "The API returned an invalid record list.");
+      allRows = result.data;
+      headers = ["Timestamp", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails"];
       viewRows = [...allRows];
       renderAll();
       populateFacultyDatalist();
@@ -1033,7 +991,11 @@ window.addEventListener("DOMContentLoaded", () => {
     addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
   }
 
-  function submitLog(){
+  function ensureApiConfigured(){
+    if (!API_URL || API_URL === "PUT_APPS_SCRIPT_EXEC_URL_HERE") throw new Error("Set API_URL to the deployed Apps Script /exec URL first.");
+  }
+
+  async function submitLog(){
     syncEntryTablesToHiddenTextareas();
 
     const dept = el("fDept").value.trim();
@@ -1048,43 +1010,25 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!equip && !cons) { toast("Fill Equipment or Consumables (at least one)."); return; }
     if (incident === "yes" && !incidentDetails) { toast("Incident Details is required if incident = yes."); return; }
 
-    const form = document.createElement("form");
-    form.action = FORM_POST_URL;
-    form.method = "POST";
-    form.target = "hidden_iframe";
-    form.style.display = "none";
-
-    const add = (name, value) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
-    };
-
-    add(ENTRY.Department, dept);
-    add(ENTRY.FacultyName, faculty);
-    add(ENTRY.GroupsRequested, groups);
-    add(ENTRY.EquipmentBorrowed, equip);
-    add(ENTRY.ConsumablesBorrowed, cons);
-    add(ENTRY.Incident, incident);
-    add(ENTRY.IncidentDetails, incidentDetails);
-
-    document.body.appendChild(form);
-
     el("submitLogBtn").disabled = true;
     el("logStatus").textContent = "Submitting...";
-
-    form.submit();
-
-    setTimeout(() => {
-      form.remove();
-      el("submitLogBtn").disabled = false;
+    try {
+      ensureApiConfigured();
+      // text/plain avoids a CORS preflight for an Apps Script Web App.
+      const res = await fetch(API_URL, { method:"POST", body:JSON.stringify({ action:"submit", payload:{ department:dept, facultyName:faculty, groupsRequested:groups, equipmentBorrowed:equip, consumablesBorrowed:cons, incident, incidentDetails } }) });
+      if (!res.ok) throw new Error("The API could not submit the borrower slip.");
+      const result = await res.json();
+      if (result.status !== "success") throw new Error(result.message || "The borrower slip was rejected.");
       el("logStatus").textContent = "Submitted ✅";
       toast("Borrower slip submitted.");
       clearLogForm();
-      setTimeout(() => loadData(), 2500);
-    }, 900);
+      await loadData();
+    } catch (error) {
+      el("logStatus").textContent = error.message || "Submission failed.";
+      toast("Submission failed. Please try again.");
+    } finally {
+      el("submitLogBtn").disabled = false;
+    }
   }
 
   // ========= Report range + report calculations =========
