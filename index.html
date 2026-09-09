@@ -582,7 +582,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   // Paste the deployed Apps Script Web App /exec URL here after deployment.
-  const API_URL = "PUT_APPS_SCRIPT_EXEC_URL_HERE";
+  const API_URL = "https://script.google.com/macros/s/AKfycbyaQ2g71glJlfgQxq10Vow-yebWXTCJAs7CZzR0kadL7YSsqVBfLGiZHgVvvTfTjik/exec";
 
   let allRows = [];
   let viewRows = [];
@@ -920,7 +920,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   function ensureApiConfigured(){
-    if (!API_URL || API_URL === "PUT_APPS_SCRIPT_EXEC_URL_HERE") throw new Error("Set API_URL to the deployed Apps Script /exec URL first.");
+    if (!API_URL) throw new Error("The production API URL is not configured.");
   }
 
 
