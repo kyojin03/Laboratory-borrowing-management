@@ -1,14 +1,9 @@
 /** GSC Laboratory Borrowing Web App API. Configure before deployment. */
-const CONFIG = { SPREADSHEET_ID: "PUT_SPREADSHEET_ID_HERE", TIMEZONE: "Asia/Manila", LOG_SHEET: "BorrowerLogs", BORROWED_ITEMS_SHEET: "BorrowedItems", ITEMS_SHEET: "Items" };
+const CONFIG = { SPREADSHEET_ID: "PUT_SPREADSHEET_ID_HERE", TIMEZONE: "Asia/Manila", LOG_SHEET: "BorrowerLogs", BORROWED_ITEMS_SHEET: "BorrowedItems" };
 const LOG_HEADERS = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "Incident", "IncidentDetails"];
-const BORROWED_ITEM_HEADERS = ["ItemLogID", "LogID", "ItemID", "ItemName", "Category", "Quantity", "Unit"];
-const ITEM_HEADERS = ["ItemID", "ItemName", "Category", "DefaultUnit", "Active"];
+const BORROWED_ITEM_HEADERS = ["ItemLogID", "LogID", "ItemName", "Category", "Quantity", "Unit"];
 const VALID_DEPARTMENTS = ["CAHP", "CNAM", "JHS", "SHS"];
-const VALID_CATEGORIES = ["Equipment", "Consumable"];
-const COUNT_UNITS = ["pcs", "set", "pair", "box", "pack", "bottle", "roll"];
-const MEASUREMENT_UNITS = ["mL", "L", "mg", "g", "kg"];
-const APPROVED_UNITS = COUNT_UNITS.concat(MEASUREMENT_UNITS);
-const MAX_LENGTHS = { facultyName: 200, incidentDetails: 2000 };
+const MAX_LENGTHS = { facultyName: 200, incidentDetails: 2000, itemName: 300, unit: 100 };
 const MAX_QUANTITY = 1000000;
 
 /** One-time administrator setup. It never converts or removes legacy data. */
@@ -17,8 +12,7 @@ function setupDatabase() {
   spreadsheet.setSpreadsheetTimeZone(CONFIG.TIMEZONE);
   const results = [
     setupSheet_(spreadsheet, CONFIG.LOG_SHEET, LOG_HEADERS, formatLogSheet_),
-    setupSheet_(spreadsheet, CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS, formatBorrowedItemsSheet_),
-    setupSheet_(spreadsheet, CONFIG.ITEMS_SHEET, ITEM_HEADERS, formatItemsSheet_)
+    setupSheet_(spreadsheet, CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS, formatBorrowedItemsSheet_)
   ];
   const status = getDatabaseStatus();
   status.setup = results;
@@ -34,7 +28,7 @@ function getDatabaseStatus() {
     const spreadsheet = getSpreadsheet_();
     status.spreadsheetConnected = true;
     status.spreadsheetTimezone = spreadsheet.getSpreadsheetTimeZone();
-    [[CONFIG.LOG_SHEET, LOG_HEADERS], [CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS], [CONFIG.ITEMS_SHEET, ITEM_HEADERS]].forEach(function(definition) {
+    [[CONFIG.LOG_SHEET, LOG_HEADERS], [CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS]].forEach(function(definition) {
       const sheet = spreadsheet.getSheetByName(definition[0]);
       const headersValid = Boolean(sheet) && headersAreValid_(sheet, definition[1]);
       status.sheets[definition[0]] = { exists: Boolean(sheet), headersValid: headersValid, records: headersValid ? Math.max(0, sheet.getLastRow() - 1) : null };
@@ -51,7 +45,6 @@ function doGet(e) {
     const params = (e && e.parameter) || {};
     switch (String(params.action || "health").toLowerCase()) {
       case "health": return jsonResponse({ status: "ok", service: "GSC Laboratory Borrowing API", timestamp: timestampString_(new Date()) });
-      case "items": return jsonResponse({ status: "success", data: getActiveItems_(params.category) });
       case "list": return jsonResponse({ status: "success", data: listLogs_(params) });
       case "stats": return jsonResponse({ status: "success", data: calculateStats_(readLogs_(), readBorrowedItems_()) });
       default: return errorResponse_("UNKNOWN_ACTION", "Unsupported action.");
@@ -65,11 +58,11 @@ function submitLog_(payload) {
   try {
     lock.waitLock(30000);
     const database = ensureDatabase_();
-    const validated = validateSubmission_(payload, getActiveItemMap_(database.items));
+    const validated = validateSubmission_(payload);
     if (validated.error) return errorResponse_("VALIDATION_ERROR", validated.error);
     logSheet = database.logs; itemSheet = database.borrowedItems;
     const now = new Date(), logId = nextLogId_(logSheet, now);
-    const itemRows = validated.items.map(function(item) { return [nextItemLogId_(itemSheet), logId, item.itemId, item.itemName, item.category, item.quantity, item.unit]; });
+    const itemRows = validated.items.map(function(item) { return [nextItemLogId_(itemSheet), logId, item.itemName, item.category, item.quantity, item.unit]; });
     // All validation occurs before writing. The script lock and rollback make this a logical transaction.
     logRow = logSheet.getLastRow() + 1;
     logSheet.getRange(logRow, 1, 1, LOG_HEADERS.length).setValues([[logId, now, validated.department, validated.facultyName, validated.groupsRequested, validated.incident, validated.incidentDetails]]);
@@ -94,20 +87,9 @@ function listLogs_(params) {
   return logs.map(function(log) { log.items = itemMap[log.LogID] || []; return log; });
 }
 function readLogs_() { const sheet = ensureDatabase_().logs; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, LOG_HEADERS.length).getValues().map(function(row) { return { LogID: String(row[0] || ""), Timestamp: row[1] instanceof Date ? timestampString_(row[1]) : String(row[1] || ""), Department: String(row[2] || ""), FacultyName: String(row[3] || ""), GroupsRequested: String(row[4] || ""), Incident: String(row[5] || ""), IncidentDetails: String(row[6] || "") }; }); }
-function readBorrowedItems_() { const sheet = ensureDatabase_().borrowedItems; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, BORROWED_ITEM_HEADERS.length).getValues().map(function(row) { return { ItemLogID: String(row[0] || ""), LogID: String(row[1] || ""), ItemID: String(row[2] || ""), ItemName: String(row[3] || ""), Category: String(row[4] || ""), Quantity: Number(row[5]) || 0, Unit: String(row[6] || "") }; }); }
+function readBorrowedItems_() { const sheet = ensureDatabase_().borrowedItems; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, BORROWED_ITEM_HEADERS.length).getValues().map(function(row) { return { ItemLogID: String(row[0] || ""), LogID: String(row[1] || ""), ItemName: String(row[2] || ""), Category: String(row[3] || ""), Quantity: Number(row[4]) || 0, Unit: String(row[5] || "") }; }); }
 
-function getActiveItems_(category) { const items = getActiveItemMap_(ensureDatabase_().items), wanted = normalizeText_(category, 20); if (wanted && VALID_CATEGORIES.indexOf(wanted) === -1) throw new Error("Invalid item category."); return Object.keys(items).map(function(id) { return items[id]; }).filter(function(item) { return !wanted || item.category === wanted; }).sort(function(a, b) { return a.itemName.localeCompare(b.itemName); }); }
-function getActiveItemMap_(sheet) {
-  const result = {}; if (sheet.getLastRow() < 2) return result;
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, ITEM_HEADERS.length).getValues().forEach(function(row) {
-    const item = { itemId: String(row[0] || "").trim(), itemName: String(row[1] || "").trim(), category: String(row[2] || "").trim(), unit: String(row[3] || "").trim(), active: isActive_(row[4]) };
-    if (!item.itemId || !item.active) return;
-    if (!item.itemName || VALID_CATEGORIES.indexOf(item.category) === -1 || APPROVED_UNITS.indexOf(item.unit) === -1) throw new Error("Items contains an invalid active item.");
-    if (result[item.itemId]) throw new Error("Items contains duplicate ItemID values.");
-    result[item.itemId] = item;
-  }); return result;
-}
-function validateSubmission_(payload, itemMap) {
+function validateSubmission_(payload) {
   if (!payload || typeof payload !== "object") return { error: "A submission payload is required." };
   const department = normalizeText_(payload.department, 20).toUpperCase(), facultyName = safeSheetText_(normalizeText_(payload.facultyName, MAX_LENGTHS.facultyName)), groupsRequested = payload.groupsRequested === "" || payload.groupsRequested == null ? "" : Number(payload.groupsRequested), incident = normalizeText_(payload.incident, 3).toLowerCase(), incidentDetails = safeSheetText_(normalizeText_(payload.incidentDetails, MAX_LENGTHS.incidentDetails));
   if (VALID_DEPARTMENTS.indexOf(department) === -1) return { error: "Department must be CAHP, CNAM, JHS, or SHS." };
@@ -115,37 +97,36 @@ function validateSubmission_(payload, itemMap) {
   if (groupsRequested !== "" && (!isFinite(groupsRequested) || groupsRequested <= 0 || groupsRequested > MAX_QUANTITY)) return { error: "Groups requested must be a positive number within the allowed range." };
   if (incident !== "yes" && incident !== "no") return { error: "Incident must be yes or no." };
   if (incident === "yes" && !incidentDetails) return { error: "Incident details are required when incident is yes." };
-  if (!Array.isArray(payload.items) || !payload.items.length) return { error: "At least one borrowed item is required." };
-  const itemsById = {};
-  for (let index = 0; index < payload.items.length; index++) {
-    const raw = payload.items[index] || {}, itemId = normalizeText_(raw.itemId, 100), master = itemMap[itemId], quantity = Number(raw.quantity);
-    if (!master) return { error: "Each selected item must be an active ItemID from Items." };
-    if (!isFinite(quantity) || quantity <= 0 || quantity > MAX_QUANTITY) return { error: "Item quantities must be positive finite numbers within the allowed range." };
-    if (COUNT_UNITS.indexOf(master.unit) !== -1 && Math.floor(quantity) !== quantity) return { error: master.itemName + " is measured in " + master.unit + " and requires a whole-number quantity." };
-    if (itemsById[itemId]) itemsById[itemId].quantity += quantity; else itemsById[itemId] = { itemId: itemId, itemName: master.itemName, category: master.category, quantity: quantity, unit: master.unit };
-  }
-  const items = Object.keys(itemsById).map(function(id) { return itemsById[id]; });
-  if (items.some(function(item) { return item.quantity > MAX_QUANTITY; })) return { error: "Combined quantity for an item exceeds the allowed range." };
+  const items = [];
+  [[payload.equipment, "Equipment"], [payload.consumables, "Consumable"]].forEach(function(section) {
+    if (section[0] != null && !Array.isArray(section[0])) throw new Error("Invalid item section.");
+    (section[0] || []).forEach(function(raw) {
+      const itemName = safeSheetText_(normalizeText_(raw && raw.itemName, MAX_LENGTHS.itemName));
+      const unit = safeSheetText_(normalizeText_(raw && raw.unit, MAX_LENGTHS.unit));
+      const quantity = Number(raw && raw.quantity);
+      if (!itemName || !unit || !isFinite(quantity) || quantity <= 0 || quantity > MAX_QUANTITY) throw new Error("Each item requires a name, positive finite quantity, and unit.");
+      items.push({ itemName: itemName, category: section[1], quantity: quantity, unit: unit });
+    });
+  });
+  if (!items.length) return { error: "At least one borrowed item is required." };
   return { department: department, facultyName: facultyName, groupsRequested: groupsRequested, incident: incident, incidentDetails: incidentDetails, items: items };
 }
 function calculateStats_(logs, borrowedItems) { const counts = { CAHP: 0, CNAM: 0, JHS: 0, SHS: 0, "Legacy JHS/SHS": 0 }; let incidents = 0, groups = 0; logs.forEach(function(log) { const department = log.Department === "JHS/SHS" ? "Legacy JHS/SHS" : log.Department; counts[department] = (counts[department] || 0) + 1; if (String(log.Incident).toLowerCase() === "yes") incidents++; groups += Number(log.GroupsRequested) || 0; }); return { totalRecords: logs.length, totalIncidents: incidents, groupsRequestedSum: groups, departmentCounts: counts, itemUsage: aggregateItems_(borrowedItems) }; }
-function aggregateItems_(items) { const totals = {}; items.forEach(function(item) { const key = [item.ItemID, item.Unit].join("|"); if (!totals[key]) totals[key] = { itemId: item.ItemID, itemName: item.ItemName, category: item.Category, unit: item.Unit, quantity: 0 }; totals[key].quantity += Number(item.Quantity) || 0; }); return Object.keys(totals).map(function(key) { return totals[key]; }).sort(function(a, b) { return b.quantity - a.quantity || a.itemName.localeCompare(b.itemName); }); }
+function aggregateItems_(items) { const totals = {}; items.forEach(function(item) { const name = normalizeText_(item.ItemName, MAX_LENGTHS.itemName), unit = normalizeText_(item.Unit, MAX_LENGTHS.unit), key = [name.toLowerCase(), item.Category, unit.toLowerCase()].join("|"); if (!totals[key]) totals[key] = { itemName: name, category: item.Category, unit: unit, quantity: 0 }; totals[key].quantity += Number(item.Quantity) || 0; }); return Object.keys(totals).map(function(key) { return totals[key]; }).sort(function(a, b) { return b.quantity - a.quantity || a.itemName.localeCompare(b.itemName); }); }
 
-function ensureDatabase_() { const spreadsheet = getSpreadsheet_(); return { logs: requireSheet_(spreadsheet, CONFIG.LOG_SHEET, LOG_HEADERS), borrowedItems: requireSheet_(spreadsheet, CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS), items: requireSheet_(spreadsheet, CONFIG.ITEMS_SHEET, ITEM_HEADERS) }; }
+function ensureDatabase_() { const spreadsheet = getSpreadsheet_(); return { logs: requireSheet_(spreadsheet, CONFIG.LOG_SHEET, LOG_HEADERS), borrowedItems: requireSheet_(spreadsheet, CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS) }; }
 function setupSheet_(spreadsheet, name, headers, formatter) { let sheet = spreadsheet.getSheetByName(name); const created = !sheet; if (!sheet) sheet = spreadsheet.insertSheet(name); const header = ensureHeaders_(sheet, headers); if (header.valid) formatter(sheet); return { sheet: name, created: created, headersCreated: header.created, headersRepaired: header.repaired, headersValid: header.valid, migrationRequired: !header.valid }; }
 function requireSheet_(spreadsheet, name, headers) { const sheet = spreadsheet.getSheetByName(name); if (!sheet) throw new Error(name + " has not been set up. Run setupDatabase() first."); if (!headersAreValid_(sheet, headers)) throw new Error(name + " has incompatible headers. Migration is required before API use."); return sheet; }
 function headersAreValid_(sheet, headers) { return sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0].map(String).join("|") === headers.join("|"); }
 function ensureHeaders_(sheet, headers) { if (headersAreValid_(sheet, headers)) return { valid: true, created: false, repaired: false }; const current = sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0].map(String); if (sheet.getLastRow() <= 1) { sheet.getRange(1, 1, 1, headers.length).setValues([headers]); return { valid: true, created: true, repaired: false }; } if (!current.every(function(value, index) { return !value || value === headers[index]; })) return { valid: false, created: false, repaired: false }; sheet.getRange(1, 1, 1, headers.length).setValues([headers]); return { valid: true, created: false, repaired: true }; }
 function formatHeader_(sheet, headers) { sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#0B3D91").setFontColor("#FFFFFF"); sheet.setFrozenRows(1); sheet.autoResizeColumns(1, headers.length); }
 function formatLogSheet_(sheet) { formatHeader_(sheet, LOG_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 2, rows, 1).setNumberFormat("yyyy-mm-dd hh:mm:ss"); sheet.getRange(2, 5, rows, 1).setNumberFormat("0.##"); [1, 3, 4, 6, 7].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
-function formatBorrowedItemsSheet_(sheet) { formatHeader_(sheet, BORROWED_ITEM_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 6, rows, 1).setNumberFormat("0.########"); [1, 2, 3, 4, 5, 7].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
-function formatItemsSheet_(sheet) { formatHeader_(sheet, ITEM_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); [1, 2, 3, 4].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
+function formatBorrowedItemsSheet_(sheet) { formatHeader_(sheet, BORROWED_ITEM_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 5, rows, 1).setNumberFormat("0.########"); [1, 2, 3, 4, 6].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
 function nextLogId_(sheet, date) { const day = Utilities.formatDate(date, CONFIG.TIMEZONE, "yyyyMMdd"), key = "logCounter:" + day, prefix = "LOG-" + day + "-", last = Number(PropertiesService.getScriptProperties().getProperty(key)) || findLargestId_(sheet, 1, new RegExp("^" + prefix + "(\\d+)$")), next = last + 1; PropertiesService.getScriptProperties().setProperty(key, String(next)); return prefix + ("0000" + next).slice(-4); }
 function nextItemLogId_(sheet) { const key = "borrowedItemCounter", last = Number(PropertiesService.getScriptProperties().getProperty(key)) || findLargestId_(sheet, 1, /^BI-(\d+)$/), next = last + 1; PropertiesService.getScriptProperties().setProperty(key, String(next)); return "BI-" + ("000000" + next).slice(-6); }
 function findLargestId_(sheet, column, pattern) { if (sheet.getLastRow() < 2) return 0; return sheet.getRange(2, column, sheet.getLastRow() - 1, 1).getDisplayValues().reduce(function(max, row) { const match = String(row[0]).match(pattern); return match ? Math.max(max, Number(match[1])) : max; }, 0); }
 function rollbackSubmission_(logSheet, logRow, itemSheet, itemStartRow, itemCount) { try { if (itemSheet && itemStartRow && itemCount && itemSheet.getLastRow() >= itemStartRow + itemCount - 1) itemSheet.deleteRows(itemStartRow, itemCount); if (logSheet && logRow && logSheet.getLastRow() >= logRow) logSheet.deleteRow(logRow); } catch (error) { console.error("Submission rollback failed: " + error); } }
 function groupItemsByLog_(items) { return items.reduce(function(result, item) { (result[item.LogID] = result[item.LogID] || []).push(item); return result; }, {}); }
-function isActive_(value) { return value === true || String(value).trim().toLowerCase() === "true" || String(value).trim() === "1" || String(value).trim().toLowerCase() === "yes"; }
 function getSpreadsheet_() { if (CONFIG.SPREADSHEET_ID === "PUT_SPREADSHEET_ID_HERE") throw new Error("SPREADSHEET_ID has not been configured."); return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
 function parseRequestBody_(e) { if (!e || !e.postData || !e.postData.contents) throw new Error("Request body is missing."); return JSON.parse(e.postData.contents); }
 function parseDateParam_(value, endOfDay) { if (!value) return null; const date = new Date(String(value) + (String(value).length === 10 ? (endOfDay ? "T23:59:59.999+08:00" : "T00:00:00+08:00") : "")); return isNaN(date.getTime()) ? null : date; }

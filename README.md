@@ -6,26 +6,18 @@ Static GitHub Pages frontend with a Google Apps Script Web App and Google Sheets
 
 `GitHub Pages (index.html) -> Apps Script Web App -> Google Sheets`
 
-The browser sends structured JSON and never chooses a unit, category, or item name for storage. The Apps Script backend validates each submitted `ItemID` against the `Items` master sheet.
+The browser sends structured JSON. Users enter item name, decimal quantity, and unit; Apps Script derives category from the Equipment or Consumables section.
 
 ## Database schema
 
 `setupDatabase()` creates these sheets automatically when they are absent:
 
 - `BorrowerLogs`: `LogID`, `Timestamp`, `Department`, `FacultyName`, `GroupsRequested`, `Incident`, `IncidentDetails`
-- `BorrowedItems`: `ItemLogID`, `LogID`, `ItemID`, `ItemName`, `Category`, `Quantity`, `Unit`
-- `Items`: `ItemID`, `ItemName`, `Category`, `DefaultUnit`, `Active`
+- `BorrowedItems`: `ItemLogID`, `LogID`, `ItemName`, `Category`, `Quantity`, `Unit`
 
 Each successful submission writes one `BorrowerLogs` row and one `BorrowedItems` row for every item. IDs are generated server-side, for example `LOG-20260909-0001` and `BI-000001`.
 
-`Items` is the master catalog. Add active items manually after setup, for example:
-
-```text
-EQ-001 | Microscope     | Equipment  | pcs | TRUE
-CON-001 | Ethyl Alcohol | Consumable | mL  | TRUE
-```
-
-Only these units are allowed: `pcs`, `set`, `pair`, `box`, `pack`, `bottle`, `roll`, `mL`, `L`, `mg`, `g`, `kg`. New departments are `CAHP`, `CNAM`, `JHS`, and `SHS`.
+Units are free text and may be any nonblank value. New departments are `CAHP`, `CNAM`, `JHS`, and `SHS`.
 
 ## Setup and deployment
 
@@ -33,20 +25,18 @@ Only these units are allowed: `pcs`, `set`, `pair`, `box`, `pack`, `bottle`, `ro
 2. Open **Extensions -> Apps Script** and paste [Code.gs](Code.gs).
 3. Set `CONFIG.SPREADSHEET_ID`; do not commit a real ID.
 4. Run `setupDatabase()` once and authorize it. It creates and formats missing sheets, including frozen/styled header rows, text/number/date formats, and the `Asia/Manila` spreadsheet timezone.
-5. Run `getDatabaseStatus()` and confirm all three sheets exist and have valid headers.
-6. Add the required master data to `Items`. Use unique IDs, the exact categories `Equipment` or `Consumable`, an approved `DefaultUnit`, and `TRUE` in `Active`.
-7. Deploy **New deployment -> Web app**, execute as **Me**, and select access appropriate for the intended users.
-8. Copy the deployed `/exec` URL into `API_URL` in [index.html](index.html), then publish the static repository through GitHub Pages. No build step is required.
+5. Run `getDatabaseStatus()` and confirm both sheets exist and have valid headers.
+6. Deploy **New deployment -> Web app**, execute as **Me**, and select access appropriate for the intended users.
+7. Copy the deployed `/exec` URL into `API_URL` in [index.html](index.html), then publish the static repository through GitHub Pages. No build step is required.
 
 ## API
 
 - `GET ?action=health` — health response.
-- `GET ?action=items&category=Equipment` — active master items; category is optional.
 - `GET ?action=list` — borrower logs with their structured borrowed items; supports `department`, `faculty`, `from`, and `to` filters.
 - `GET ?action=stats` — totals and item usage grouped by item and canonical unit.
-- `POST` `{ "action": "submit", "payload": { "department", "facultyName", "groupsRequested", "incident", "incidentDetails", "items": [{ "itemId", "quantity" }] } }`.
+- `POST` includes `equipment` and `consumables` arrays of `{ "itemName", "quantity", "unit" }`.
 
-Count units require whole quantities. Measurement units allow decimals. Quantities must be finite, positive, and within the configured maximum. Duplicate submitted item IDs are consolidated before rows are written. Each submission is validated before writing; `LockService` and rollback protect the linked log/item write as one logical transaction.
+Quantities may be decimal but must be finite, positive, and within the configured maximum. Each nonblank item row requires all three fields. Each submission is validated before writing; `LockService` and rollback protect the linked log/item write as one logical transaction.
 
 Reports use the structured `items` data returned by `list`, not serialized text. They display quantities by item and unit, and deliberately do not combine incompatible units. The code has a future conversion boundary, but does not currently convert `mL` to `L`, `mg` to `g`, or `g` to `kg`.
 

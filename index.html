@@ -588,7 +588,6 @@ window.addEventListener("DOMContentLoaded", () => {
   let allRows = [];
   let viewRows = [];
   let headers = [];
-  let itemCatalog = { equip: [], cons: [] };
 
   const el = (id) => document.getElementById(id);
 
@@ -631,12 +630,10 @@ window.addEventListener("DOMContentLoaded", () => {
   function addEntryRow(tbodyEl, kind){
     const tr = document.createElement("tr");
     const itemCell = document.createElement("td");
-    const select = document.createElement("select");
-    select.className = `entry-input ${kind}-item`;
-    const blank = new Option("Select an item", "");
-    select.add(blank);
-    itemCatalog[kind].forEach(item => select.add(new Option(item.itemName, item.itemId)));
-    itemCell.appendChild(select);
+    const name = document.createElement("input");
+    name.className = `entry-input ${kind}-item`;
+    name.placeholder = kind === "equip" ? "e.g., Microscope" : "e.g., Alcohol";
+    itemCell.appendChild(name);
 
     const quantityCell = document.createElement("td");
     const quantity = document.createElement("input");
@@ -644,12 +641,14 @@ window.addEventListener("DOMContentLoaded", () => {
     quantity.type = "number";
     quantity.min = "0.01";
     quantity.step = "any";
-    quantity.placeholder = "0";
+    quantity.placeholder = "Qty";
     quantityCell.appendChild(quantity);
 
     const unitCell = document.createElement("td");
-    unitCell.className = `${kind}-unit muted`;
-    unitCell.textContent = "—";
+    const unit = document.createElement("input");
+    unit.className = `entry-input ${kind}-unit`;
+    unit.placeholder = "e.g., pcs, mL, g";
+    unitCell.appendChild(unit);
     const removeCell = document.createElement("td");
     removeCell.className = "no-print";
     const remove = document.createElement("button");
@@ -658,29 +657,25 @@ window.addEventListener("DOMContentLoaded", () => {
     remove.textContent = "×";
     remove.addEventListener("click", () => tr.remove());
     removeCell.appendChild(remove);
-    select.addEventListener("change", () => {
-      const item = itemCatalog[kind].find(candidate => candidate.itemId === select.value);
-      unitCell.textContent = item ? item.unit : "—";
-      quantity.step = item && ["pcs", "set", "pair", "box", "pack", "bottle", "roll"].includes(item.unit) ? "1" : "any";
-    });
     tr.append(itemCell, quantityCell, unitCell, removeCell);
     tbodyEl.appendChild(tr);
   }
 
   function getStructuredItems(){
-    const itemsById = new Map();
+    const sections = { equipment: [], consumables: [] };
     for (const kind of ["equip", "cons"]){
       const tableId = kind === "equip" ? "equipEntryTable" : "consEntryTable";
       el(tableId).querySelectorAll("tbody tr").forEach(row => {
-        const itemId = row.querySelector(`.${kind}-item`).value;
+        const itemName = row.querySelector(`.${kind}-item`).value.trim();
         const quantityRaw = row.querySelector(`.${kind}-qty`).value.trim();
-        if (!itemId && !quantityRaw) return;
+        const unit = row.querySelector(`.${kind}-unit`).value.trim();
+        if (!itemName && !quantityRaw && !unit) return;
         const quantity = Number(quantityRaw);
-        if (!itemId || !Number.isFinite(quantity) || quantity <= 0) throw new Error("Select an item and enter a positive quantity for every completed row.");
-        itemsById.set(itemId, (itemsById.get(itemId) || 0) + quantity);
+        if (!itemName || !unit || !Number.isFinite(quantity) || quantity <= 0) throw new Error("Each completed item row needs a name, positive quantity, and unit.");
+        sections[kind === "equip" ? "equipment" : "consumables"].push({ itemName, quantity, unit });
       });
     }
-    return [...itemsById].map(([itemId, quantity]) => ({ itemId, quantity }));
+    return sections;
   }
 
   function clearEntryTables(){
@@ -696,7 +691,7 @@ window.addEventListener("DOMContentLoaded", () => {
     for (const r of rows){
       const list = Array.isArray(r.items) ? r.items.filter(item => item.Category === (type === "equip" ? "Equipment" : "Consumable")) : [];
       for (const it of list){
-        const key = `${it.ItemID}|${it.Unit}`;
+        const key = `${it.ItemName}`.trim().toLowerCase().replace(/\s+/g, " ") + `|${it.Category}|${it.Unit}`.trim().toLowerCase().replace(/\s+/g, " ");
         if (!displayBy.has(key)) displayBy.set(key, `${it.ItemName} (${it.Unit})`);
         qtyBy.set(key, (qtyBy.get(key) || 0) + (Number(it.Quantity) || 0));
         mentionsBy.set(key, (mentionsBy.get(key) || 0) + 1);
@@ -924,20 +919,6 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!API_URL || API_URL === "PUT_APPS_SCRIPT_EXEC_URL_HERE") throw new Error("Set API_URL to the deployed Apps Script /exec URL first.");
   }
 
-  async function loadItemCatalog(){
-    ensureApiConfigured();
-    const res = await fetch(`${API_URL}?action=items`, { cache:"no-store" });
-    if (!res.ok) throw new Error("The API could not load the item catalog.");
-    const result = await res.json();
-    if (result.status !== "success" || !Array.isArray(result.data)) throw new Error(result.message || "The API returned an invalid item catalog.");
-    itemCatalog = {
-      equip: result.data.filter(item => item.category === "Equipment"),
-      cons: result.data.filter(item => item.category === "Consumable")
-    };
-    clearEntryTables();
-    addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
-    addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
-  }
 
   async function submitLog(){
     const dept = el("fDept").value.trim();
@@ -945,19 +926,19 @@ window.addEventListener("DOMContentLoaded", () => {
     const groups = el("fGroups").value.trim();
     const incident = el("fIncident").value.trim();
     const incidentDetails = el("fIncidentDetails").value.trim();
-    let items;
+    let itemSections;
 
     if (!faculty) { toast("Faculty Name is required."); return; }
     if (incident === "yes" && !incidentDetails) { toast("Incident Details is required if incident = yes."); return; }
-    try { items = getStructuredItems(); } catch (error) { toast(error.message); return; }
-    if (!items.length) { toast("Add at least one equipment or consumable item."); return; }
+    try { itemSections = getStructuredItems(); } catch (error) { toast(error.message); return; }
+    if (!itemSections.equipment.length && !itemSections.consumables.length) { toast("Add at least one equipment or consumable item."); return; }
 
     el("submitLogBtn").disabled = true;
     el("logStatus").textContent = "Submitting...";
     try {
       ensureApiConfigured();
       // text/plain avoids a CORS preflight for an Apps Script Web App.
-      const res = await fetch(API_URL, { method:"POST", body:JSON.stringify({ action:"submit", payload:{ department:dept, facultyName:faculty, groupsRequested:groups, incident, incidentDetails, items } }) });
+      const res = await fetch(API_URL, { method:"POST", body:JSON.stringify({ action:"submit", payload:{ department:dept, facultyName:faculty, groupsRequested:groups, incident, incidentDetails, ...itemSections } }) });
       if (!res.ok) throw new Error("The API could not submit the borrower slip.");
       const result = await res.json();
       if (result.status !== "success") throw new Error(result.message || "The borrower slip was rejected.");
@@ -1111,9 +1092,6 @@ window.addEventListener("DOMContentLoaded", () => {
   addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
   addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
 
-  loadItemCatalog().catch(error => {
-    el("logStatus").textContent = error.message || "Unable to load the item catalog.";
-  });
   loadData();
 });
 </script>
