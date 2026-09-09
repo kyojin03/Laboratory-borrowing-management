@@ -1,63 +1,59 @@
 # Laboratory Borrowing Management
 
-A static GitHub Pages application for logging laboratory borrower slips, viewing the logbook, filtering records, producing period reports, exporting CSV, and printing reports.
+Static GitHub Pages frontend with a Google Apps Script Web App and Google Sheets database. Do not deploy the Apps Script backend until the database setup and item catalog below are complete.
 
 ## Architecture
 
-`GitHub Pages (index.html) -> Google Apps Script Web App -> Google Sheets (BorrowerLogs)`
+`GitHub Pages (index.html) -> Apps Script Web App -> Google Sheets`
 
-The browser submits and reads JSON through the deployed Apps Script Web App. The spreadsheet does **not** need to be published to the web, and the frontend no longer submits to Google Forms or loads a published CSV.
+The browser sends structured JSON and never chooses a unit, category, or item name for storage. The Apps Script backend validates each submitted `ItemID` against the `Items` master sheet.
 
-## Database setup
+## Database schema
 
-Select or create the Google Spreadsheet used for logs. You do not need to create `BorrowerLogs` or type its headers manually. `setupDatabase()` creates the sheet when absent, writes or safely repairs its header row, freezes and styles the header, sizes columns, applies appropriate date/number/text formats, and sets the spreadsheet timezone to `Asia/Manila`.
+`setupDatabase()` creates these sheets automatically when they are absent:
 
-The database headers are:
+- `BorrowerLogs`: `LogID`, `Timestamp`, `Department`, `FacultyName`, `GroupsRequested`, `Incident`, `IncidentDetails`
+- `BorrowedItems`: `ItemLogID`, `LogID`, `ItemID`, `ItemName`, `Category`, `Quantity`, `Unit`
+- `Items`: `ItemID`, `ItemName`, `Category`, `DefaultUnit`, `Active`
+
+Each successful submission writes one `BorrowerLogs` row and one `BorrowedItems` row for every item. IDs are generated server-side, for example `LOG-20260909-0001` and `BI-000001`.
+
+`Items` is the master catalog. Add active items manually after setup, for example:
 
 ```text
-Timestamp | Department | FacultyName | GroupsRequested | EquipmentBorrowed | ConsumablesBorrowed | Incident | IncidentDetails
+EQ-001 | Microscope     | Equipment  | pcs | TRUE
+CON-001 | Ethyl Alcohol | Consumable | mL  | TRUE
 ```
 
-The app stores multiple equipment or consumable entries as the current semicolon-separated `Item - quantity` text format. New submissions may use only `CAHP`, `CNAM`, `JHS`, or `SHS`. Existing `JHS/SHS` rows are preserved as legacy records and are never automatically assigned to JHS or SHS.
+Only these units are allowed: `pcs`, `set`, `pair`, `box`, `pack`, `bottle`, `roll`, `mL`, `L`, `mg`, `g`, `kg`. New departments are `CAHP`, `CNAM`, `JHS`, and `SHS`.
 
-## Deploy the backend
+## Setup and deployment
 
-1. Open the Google Spreadsheet and copy its ID from its URL.
-2. Open **Extensions -> Apps Script** and replace the project script with [Code.gs](Code.gs).
-3. In `CONFIG`, replace `PUT_SPREADSHEET_ID_HERE` with that spreadsheet ID. Do not commit a real ID to this repository.
-4. Save, select `setupDatabase` in the Apps Script function menu, and run it once. Authorize the script when asked.
-5. Confirm that `BorrowerLogs` was automatically created, then run `getDatabaseStatus` and inspect its execution log/result.
-6. Choose **Deploy -> New deployment -> Web app**.
-7. Set **Execute as** to **Me**, and choose access appropriate for the users who must submit and read logs.
-8. Deploy and copy the `/exec` URL (not the `/dev` URL).
-9. In [index.html](index.html), replace `PUT_APPS_SCRIPT_EXEC_URL_HERE` in `API_URL` with the `/exec` URL.
-10. Deploy the static files to GitHub Pages as usual; no build step or dependency installation is needed.
+1. Create or select the Google Spreadsheet and copy its ID from the URL.
+2. Open **Extensions -> Apps Script** and paste [Code.gs](Code.gs).
+3. Set `CONFIG.SPREADSHEET_ID`; do not commit a real ID.
+4. Run `setupDatabase()` once and authorize it. It creates and formats missing sheets, including frozen/styled header rows, text/number/date formats, and the `Asia/Manila` spreadsheet timezone.
+5. Run `getDatabaseStatus()` and confirm all three sheets exist and have valid headers.
+6. Add the required master data to `Items`. Use unique IDs, the exact categories `Equipment` or `Consumable`, an approved `DefaultUnit`, and `TRUE` in `Active`.
+7. Deploy **New deployment -> Web app**, execute as **Me**, and select access appropriate for the intended users.
+8. Copy the deployed `/exec` URL into `API_URL` in [index.html](index.html), then publish the static repository through GitHub Pages. No build step is required.
 
-## Test after deployment
+## API
 
-1. Open `YOUR_EXEC_URL?action=health`; it should return a JSON `status` of `ok`.
-2. Submit one borrower slip and confirm that its timestamp was generated in `BorrowerLogs`.
-3. Open `YOUR_EXEC_URL?action=list` and confirm the record is returned.
-4. Use **Load / Refresh Data**, filters, reports, CSV export, and printing in the GitHub Pages site.
+- `GET ?action=health` — health response.
+- `GET ?action=items&category=Equipment` — active master items; category is optional.
+- `GET ?action=list` — borrower logs with their structured borrowed items; supports `department`, `faculty`, `from`, and `to` filters.
+- `GET ?action=stats` — totals and item usage grouped by item and canonical unit.
+- `POST` `{ "action": "submit", "payload": { "department", "facultyName", "groupsRequested", "incident", "incidentDetails", "items": [{ "itemId", "quantity" }] } }`.
 
-## API contract
+Count units require whole quantities. Measurement units allow decimals. Quantities must be finite, positive, and within the configured maximum. Duplicate submitted item IDs are consolidated before rows are written. Each submission is validated before writing; `LockService` and rollback protect the linked log/item write as one logical transaction.
 
-- `GET ?action=health` returns service status and a Manila timestamp.
-- `GET ?action=list` returns logs; optional `department`, `faculty`, `from`, and `to` parameters filter server-side.
-- `GET ?action=stats` returns record, incident, group, department, and parsed item-use totals.
-- `POST` JSON `{ "action": "submit", "payload": { ... } }` validates and appends a borrower slip.
+Reports use the structured `items` data returned by `list`, not serialized text. They display quantities by item and unit, and deliberately do not combine incompatible units. The code has a future conversion boundary, but does not currently convert `mL` to `L`, `mg` to `g`, or `g` to `kg`.
 
-The backend creates timestamps server-side, serializes writes with `LockService`, rejects malformed borrower data, safely stores text that starts with spreadsheet formula characters, and does not expose the spreadsheet ID or server stack traces. API requests only verify that setup is complete; they do not reformat the sheet.
+## Legacy data
 
-## Repository contents
+The prior serialized `BorrowerLogs` format is not automatically migrated. If it already exists, `setupDatabase()` preserves it unchanged and reports that migration is required; it will not overwrite, reorder, or guess data. This includes historical `JHS/SHS` records, which must not be reassigned to JHS or SHS without a manual, reviewed migration.
 
-- `index.html` — GitHub Pages frontend; set `API_URL` after Apps Script deployment.
-- `Code.gs` — active Apps Script Web App backend; set `CONFIG.SPREADSHEET_ID` before deployment.
-- `GS.png` — logo asset retained from the original package.
-- `Laboratory_Borrowing_Management_System_2025.xlsx` — historical workbook from the prior Equipment/Chemicals implementation; not used by the active application.
-- `lab_borrowing_package.zip` — archive of an earlier package already represented in Git history; retain only if an offline distribution copy is needed.
-- `legacy/Code.old.gs` — marker for the retired Equipment/Chemicals Apps Script architecture; its full original source remains in Git history before this migration.
+## Privacy
 
-## Privacy and access
-
-The Web App's access setting controls who can read and submit borrower logs. Because `list` exposes all borrower records to anyone who can reach the deployed endpoint, deploy it only to the intended audience and avoid treating the `/exec` URL as a secret. Do not publish the spreadsheet to the web unless there is a separate, intentional public-data need.
+The Web App access setting governs who can submit and read logs. The `/exec` URL is not a secret, so use an access policy appropriate for the borrower data and do not publish the spreadsheet to the web.

@@ -1,68 +1,47 @@
-/**
- * GSC Laboratory Borrowing Web App API.
- * Set SPREADSHEET_ID before deploying. Never return it to API clients.
- */
-const CONFIG = {
-  SPREADSHEET_ID: "PUT_SPREADSHEET_ID_HERE",
-  LOG_SHEET: "BorrowerLogs",
-  TIMEZONE: "Asia/Manila"
-};
-
-const HEADERS = [
-  "Timestamp", "Department", "FacultyName", "GroupsRequested",
-  "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails"
-];
+/** GSC Laboratory Borrowing Web App API. Configure before deployment. */
+const CONFIG = { SPREADSHEET_ID: "PUT_SPREADSHEET_ID_HERE", TIMEZONE: "Asia/Manila", LOG_SHEET: "BorrowerLogs", BORROWED_ITEMS_SHEET: "BorrowedItems", ITEMS_SHEET: "Items" };
+const LOG_HEADERS = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "Incident", "IncidentDetails"];
+const BORROWED_ITEM_HEADERS = ["ItemLogID", "LogID", "ItemID", "ItemName", "Category", "Quantity", "Unit"];
+const ITEM_HEADERS = ["ItemID", "ItemName", "Category", "DefaultUnit", "Active"];
 const VALID_DEPARTMENTS = ["CAHP", "CNAM", "JHS", "SHS"];
-const MAX_LENGTHS = { facultyName: 200, groupsRequested: 20, equipmentBorrowed: 5000, consumablesBorrowed: 5000, incidentDetails: 2000 };
+const VALID_CATEGORIES = ["Equipment", "Consumable"];
+const COUNT_UNITS = ["pcs", "set", "pair", "box", "pack", "bottle", "roll"];
+const MEASUREMENT_UNITS = ["mL", "L", "mg", "g", "kg"];
+const APPROVED_UNITS = COUNT_UNITS.concat(MEASUREMENT_UNITS);
+const MAX_LENGTHS = { facultyName: 200, incidentDetails: 2000 };
+const MAX_QUANTITY = 1000000;
 
-/**
- * One-time administrator setup. Creates and formats BorrowerLogs without
- * deleting records. Run manually from the Apps Script editor after setting
- * CONFIG.SPREADSHEET_ID.
- */
+/** One-time administrator setup. It never converts or removes legacy data. */
 function setupDatabase() {
   const spreadsheet = getSpreadsheet_();
   spreadsheet.setSpreadsheetTimeZone(CONFIG.TIMEZONE);
-
-  let sheet = spreadsheet.getSheetByName(CONFIG.LOG_SHEET);
-  const created = !sheet;
-  if (!sheet) sheet = spreadsheet.insertSheet(CONFIG.LOG_SHEET);
-
-  const headerResult = ensureHeaders_(sheet);
-  if (!headerResult.valid) {
-    const status = getDatabaseStatus();
-    status.created = created;
-    status.message = "BorrowerLogs was not reformatted because its existing header row is not safe to repair automatically.";
-    Logger.log(JSON.stringify(status));
-    return status;
-  }
-
-  formatDatabaseSheet_(sheet);
+  const results = [
+    setupSheet_(spreadsheet, CONFIG.LOG_SHEET, LOG_HEADERS, formatLogSheet_),
+    setupSheet_(spreadsheet, CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS, formatBorrowedItemsSheet_),
+    setupSheet_(spreadsheet, CONFIG.ITEMS_SHEET, ITEM_HEADERS, formatItemsSheet_)
+  ];
   const status = getDatabaseStatus();
-  status.created = created;
-  status.headersCreated = headerResult.created;
-  status.headersRepaired = headerResult.repaired;
+  status.setup = results;
+  status.migrationRequired = results.some(function(result) { return result.migrationRequired; });
   Logger.log(JSON.stringify(status));
   return status;
 }
 
-/** Returns diagnostic information for an Apps Script administrator only. */
+/** Diagnostic helper for the Apps Script editor; never exposed through doGet. */
 function getDatabaseStatus() {
-  const status = { spreadsheetConnected: false, borrowerLogsExists: false, headersValid: false, numberOfRecords: 0, spreadsheetTimezone: null };
+  const status = { spreadsheetConnected: false, borrowerLogsExists: false, headersValid: false, numberOfRecords: 0, spreadsheetTimezone: null, sheets: {} };
   try {
     const spreadsheet = getSpreadsheet_();
     status.spreadsheetConnected = true;
     status.spreadsheetTimezone = spreadsheet.getSpreadsheetTimeZone();
-    const sheet = spreadsheet.getSheetByName(CONFIG.LOG_SHEET);
-    status.borrowerLogsExists = Boolean(sheet);
-    if (sheet) {
-      status.headersValid = headersAreValid_(sheet);
-      status.numberOfRecords = Math.max(0, sheet.getLastRow() - (status.headersValid ? 1 : 0));
-    }
-  } catch (error) {
-    status.error = "Database configuration could not be verified. Check Apps Script logs for details.";
-    console.error(error);
-  }
+    [[CONFIG.LOG_SHEET, LOG_HEADERS], [CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS], [CONFIG.ITEMS_SHEET, ITEM_HEADERS]].forEach(function(definition) {
+      const sheet = spreadsheet.getSheetByName(definition[0]);
+      const headersValid = Boolean(sheet) && headersAreValid_(sheet, definition[1]);
+      status.sheets[definition[0]] = { exists: Boolean(sheet), headersValid: headersValid, records: headersValid ? Math.max(0, sheet.getLastRow() - 1) : null };
+    });
+    const logs = status.sheets[CONFIG.LOG_SHEET];
+    status.borrowerLogsExists = logs.exists; status.headersValid = logs.headersValid; status.numberOfRecords = logs.records;
+  } catch (error) { status.error = "Database configuration could not be verified. Check Apps Script logs for details."; console.error(error); }
   Logger.log(JSON.stringify(status));
   return status;
 }
@@ -71,137 +50,108 @@ function doGet(e) {
   try {
     const params = (e && e.parameter) || {};
     switch (String(params.action || "health").toLowerCase()) {
-      case "health": return jsonResponse({ status: "ok", service: "GSC Laboratory Borrowing API", timestamp: timestampString(new Date()) });
-      case "list": return listLogs(params);
-      case "stats": return jsonResponse({ status: "success", data: calculateStats(readLogs()) });
-      default: return errorResponse("UNKNOWN_ACTION", "Unsupported action.");
+      case "health": return jsonResponse({ status: "ok", service: "GSC Laboratory Borrowing API", timestamp: timestampString_(new Date()) });
+      case "items": return jsonResponse({ status: "success", data: getActiveItems_(params.category) });
+      case "list": return jsonResponse({ status: "success", data: listLogs_(params) });
+      case "stats": return jsonResponse({ status: "success", data: calculateStats_(readLogs_(), readBorrowedItems_()) });
+      default: return errorResponse_("UNKNOWN_ACTION", "Unsupported action.");
     }
-  } catch (error) {
-    return handleServerError(error);
-  }
+  } catch (error) { return handleServerError_(error); }
 }
+function doPost(e) { try { const body = parseRequestBody_(e); return String(body.action || "").toLowerCase() === "submit" ? submitLog_(body.payload) : errorResponse_("UNKNOWN_ACTION", "Unsupported action."); } catch (error) { return handleServerError_(error); } }
 
-function doPost(e) {
-  try {
-    const body = parseRequestBody(e);
-    if (String(body.action || "").toLowerCase() !== "submit") return errorResponse("UNKNOWN_ACTION", "Unsupported action.");
-    return submitLog(body.payload);
-  } catch (error) {
-    return handleServerError(error);
-  }
-}
-
-function submitLog(payload) {
-  const normalized = validatePayload(payload);
-  if (normalized.error) return errorResponse("VALIDATION_ERROR", normalized.error);
-
-  const lock = LockService.getScriptLock();
+function submitLog_(payload) {
+  const lock = LockService.getScriptLock(); let logSheet, itemSheet, logRow = 0, itemStartRow = 0, itemCount = 0;
   try {
     lock.waitLock(30000);
-    const sheet = getLogSheet();
-    sheet.appendRow([new Date(), normalized.department, normalized.facultyName, normalized.groupsRequested, normalized.equipmentBorrowed, normalized.consumablesBorrowed, normalized.incident, normalized.incidentDetails]);
-    return jsonResponse({ status: "success", message: "Borrower slip recorded." });
+    const database = ensureDatabase_();
+    const validated = validateSubmission_(payload, getActiveItemMap_(database.items));
+    if (validated.error) return errorResponse_("VALIDATION_ERROR", validated.error);
+    logSheet = database.logs; itemSheet = database.borrowedItems;
+    const now = new Date(), logId = nextLogId_(logSheet, now);
+    const itemRows = validated.items.map(function(item) { return [nextItemLogId_(itemSheet), logId, item.itemId, item.itemName, item.category, item.quantity, item.unit]; });
+    // All validation occurs before writing. The script lock and rollback make this a logical transaction.
+    logRow = logSheet.getLastRow() + 1;
+    logSheet.getRange(logRow, 1, 1, LOG_HEADERS.length).setValues([[logId, now, validated.department, validated.facultyName, validated.groupsRequested, validated.incident, validated.incidentDetails]]);
+    itemStartRow = itemSheet.getLastRow() + 1; itemCount = itemRows.length;
+    itemSheet.getRange(itemStartRow, 1, itemCount, BORROWED_ITEM_HEADERS.length).setValues(itemRows);
+    return jsonResponse({ status: "success", message: "Borrower slip recorded.", logId: logId });
   } catch (error) {
-    console.error(error);
-    return errorResponse("WRITE_ERROR", "Unable to record the borrower slip. Please try again.");
-  } finally {
-    if (lock.hasLock()) lock.releaseLock();
-  }
+    rollbackSubmission_(logSheet, logRow, itemSheet, itemStartRow, itemCount);
+    console.error(error && error.stack ? error.stack : error);
+    return errorResponse_("WRITE_ERROR", "Unable to record the borrower slip. Please try again.");
+  } finally { if (lock.hasLock()) lock.releaseLock(); }
 }
 
-function listLogs(params) {
-  let records = readLogs();
-  const department = normalizeText(params.department, 20).toUpperCase();
-  const faculty = normalizeText(params.faculty, MAX_LENGTHS.facultyName).toLowerCase();
-  const from = parseDateParam(params.from, false);
-  const to = parseDateParam(params.to, true);
-  if (department) records = records.filter(function(record) { return record.Department === department; });
-  if (faculty) records = records.filter(function(record) { return record.FacultyName.toLowerCase().indexOf(faculty) !== -1; });
-  if (from) records = records.filter(function(record) { return new Date(record.Timestamp) >= from; });
-  if (to) records = records.filter(function(record) { return new Date(record.Timestamp) <= to; });
-  return jsonResponse({ status: "success", data: records });
+function listLogs_(params) {
+  let logs = readLogs_();
+  const department = normalizeText_(params.department, 20).toUpperCase(), faculty = normalizeText_(params.faculty, MAX_LENGTHS.facultyName).toLowerCase(), from = parseDateParam_(params.from, false), to = parseDateParam_(params.to, true);
+  if (department) logs = logs.filter(function(log) { return log.Department === department; });
+  if (faculty) logs = logs.filter(function(log) { return log.FacultyName.toLowerCase().indexOf(faculty) !== -1; });
+  if (from) logs = logs.filter(function(log) { return new Date(log.Timestamp) >= from; });
+  if (to) logs = logs.filter(function(log) { return new Date(log.Timestamp) <= to; });
+  const itemMap = groupItemsByLog_(readBorrowedItems_());
+  return logs.map(function(log) { log.items = itemMap[log.LogID] || []; return log; });
 }
+function readLogs_() { const sheet = ensureDatabase_().logs; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, LOG_HEADERS.length).getValues().map(function(row) { return { LogID: String(row[0] || ""), Timestamp: row[1] instanceof Date ? timestampString_(row[1]) : String(row[1] || ""), Department: String(row[2] || ""), FacultyName: String(row[3] || ""), GroupsRequested: String(row[4] || ""), Incident: String(row[5] || ""), IncidentDetails: String(row[6] || "") }; }); }
+function readBorrowedItems_() { const sheet = ensureDatabase_().borrowedItems; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, BORROWED_ITEM_HEADERS.length).getValues().map(function(row) { return { ItemLogID: String(row[0] || ""), LogID: String(row[1] || ""), ItemID: String(row[2] || ""), ItemName: String(row[3] || ""), Category: String(row[4] || ""), Quantity: Number(row[5]) || 0, Unit: String(row[6] || "") }; }); }
 
-function readLogs() {
-  const sheet = getLogSheet();
-  if (sheet.getLastRow() < 2) return [];
-  return sheet.getRange(2, 1, sheet.getLastRow() - 1, HEADERS.length).getValues().map(function(row) {
-    return {
-      Timestamp: row[0] instanceof Date ? timestampString(row[0]) : String(row[0] || ""),
-      Department: String(row[1] || ""), FacultyName: String(row[2] || ""),
-      GroupsRequested: String(row[3] || ""), EquipmentBorrowed: String(row[4] || ""),
-      ConsumablesBorrowed: String(row[5] || ""), Incident: String(row[6] || ""), IncidentDetails: String(row[7] || "")
-    };
-  });
+function getActiveItems_(category) { const items = getActiveItemMap_(ensureDatabase_().items), wanted = normalizeText_(category, 20); if (wanted && VALID_CATEGORIES.indexOf(wanted) === -1) throw new Error("Invalid item category."); return Object.keys(items).map(function(id) { return items[id]; }).filter(function(item) { return !wanted || item.category === wanted; }).sort(function(a, b) { return a.itemName.localeCompare(b.itemName); }); }
+function getActiveItemMap_(sheet) {
+  const result = {}; if (sheet.getLastRow() < 2) return result;
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, ITEM_HEADERS.length).getValues().forEach(function(row) {
+    const item = { itemId: String(row[0] || "").trim(), itemName: String(row[1] || "").trim(), category: String(row[2] || "").trim(), unit: String(row[3] || "").trim(), active: isActive_(row[4]) };
+    if (!item.itemId || !item.active) return;
+    if (!item.itemName || VALID_CATEGORIES.indexOf(item.category) === -1 || APPROVED_UNITS.indexOf(item.unit) === -1) throw new Error("Items contains an invalid active item.");
+    if (result[item.itemId]) throw new Error("Items contains duplicate ItemID values.");
+    result[item.itemId] = item;
+  }); return result;
 }
-
-function getLogSheet() {
-  return ensureDatabase_();
-}
-
-function validatePayload(payload) {
+function validateSubmission_(payload, itemMap) {
   if (!payload || typeof payload !== "object") return { error: "A submission payload is required." };
-  const department = normalizeText(payload.department, 20).toUpperCase();
-  const facultyName = safeSheetText(normalizeText(payload.facultyName, MAX_LENGTHS.facultyName));
-  const groupsRequested = normalizeText(payload.groupsRequested, MAX_LENGTHS.groupsRequested);
-  const equipmentBorrowed = safeSheetText(normalizeText(payload.equipmentBorrowed, MAX_LENGTHS.equipmentBorrowed));
-  const consumablesBorrowed = safeSheetText(normalizeText(payload.consumablesBorrowed, MAX_LENGTHS.consumablesBorrowed));
-  const incident = normalizeText(payload.incident, 3).toLowerCase();
-  const incidentDetails = safeSheetText(normalizeText(payload.incidentDetails, MAX_LENGTHS.incidentDetails));
+  const department = normalizeText_(payload.department, 20).toUpperCase(), facultyName = safeSheetText_(normalizeText_(payload.facultyName, MAX_LENGTHS.facultyName)), groupsRequested = payload.groupsRequested === "" || payload.groupsRequested == null ? "" : Number(payload.groupsRequested), incident = normalizeText_(payload.incident, 3).toLowerCase(), incidentDetails = safeSheetText_(normalizeText_(payload.incidentDetails, MAX_LENGTHS.incidentDetails));
   if (VALID_DEPARTMENTS.indexOf(department) === -1) return { error: "Department must be CAHP, CNAM, JHS, or SHS." };
   if (!facultyName) return { error: "Faculty name is required." };
-  if (!equipmentBorrowed && !consumablesBorrowed) return { error: "Enter equipment or consumables." };
-  if (groupsRequested && (!/^\d+(?:\.\d+)?$/.test(groupsRequested) || Number(groupsRequested) <= 0)) return { error: "Groups requested must be blank or a positive number." };
+  if (groupsRequested !== "" && (!isFinite(groupsRequested) || groupsRequested <= 0 || groupsRequested > MAX_QUANTITY)) return { error: "Groups requested must be a positive number within the allowed range." };
   if (incident !== "yes" && incident !== "no") return { error: "Incident must be yes or no." };
   if (incident === "yes" && !incidentDetails) return { error: "Incident details are required when incident is yes." };
-  return { department: department, facultyName: facultyName, groupsRequested: groupsRequested, equipmentBorrowed: equipmentBorrowed, consumablesBorrowed: consumablesBorrowed, incident: incident, incidentDetails: incidentDetails };
+  if (!Array.isArray(payload.items) || !payload.items.length) return { error: "At least one borrowed item is required." };
+  const itemsById = {};
+  for (let index = 0; index < payload.items.length; index++) {
+    const raw = payload.items[index] || {}, itemId = normalizeText_(raw.itemId, 100), master = itemMap[itemId], quantity = Number(raw.quantity);
+    if (!master) return { error: "Each selected item must be an active ItemID from Items." };
+    if (!isFinite(quantity) || quantity <= 0 || quantity > MAX_QUANTITY) return { error: "Item quantities must be positive finite numbers within the allowed range." };
+    if (COUNT_UNITS.indexOf(master.unit) !== -1 && Math.floor(quantity) !== quantity) return { error: master.itemName + " is measured in " + master.unit + " and requires a whole-number quantity." };
+    if (itemsById[itemId]) itemsById[itemId].quantity += quantity; else itemsById[itemId] = { itemId: itemId, itemName: master.itemName, category: master.category, quantity: quantity, unit: master.unit };
+  }
+  const items = Object.keys(itemsById).map(function(id) { return itemsById[id]; });
+  if (items.some(function(item) { return item.quantity > MAX_QUANTITY; })) return { error: "Combined quantity for an item exceeds the allowed range." };
+  return { department: department, facultyName: facultyName, groupsRequested: groupsRequested, incident: incident, incidentDetails: incidentDetails, items: items };
 }
+function calculateStats_(logs, borrowedItems) { const counts = { CAHP: 0, CNAM: 0, JHS: 0, SHS: 0, "Legacy JHS/SHS": 0 }; let incidents = 0, groups = 0; logs.forEach(function(log) { const department = log.Department === "JHS/SHS" ? "Legacy JHS/SHS" : log.Department; counts[department] = (counts[department] || 0) + 1; if (String(log.Incident).toLowerCase() === "yes") incidents++; groups += Number(log.GroupsRequested) || 0; }); return { totalRecords: logs.length, totalIncidents: incidents, groupsRequestedSum: groups, departmentCounts: counts, itemUsage: aggregateItems_(borrowedItems) }; }
+function aggregateItems_(items) { const totals = {}; items.forEach(function(item) { const key = [item.ItemID, item.Unit].join("|"); if (!totals[key]) totals[key] = { itemId: item.ItemID, itemName: item.ItemName, category: item.Category, unit: item.Unit, quantity: 0 }; totals[key].quantity += Number(item.Quantity) || 0; }); return Object.keys(totals).map(function(key) { return totals[key]; }).sort(function(a, b) { return b.quantity - a.quantity || a.itemName.localeCompare(b.itemName); }); }
 
-function calculateStats(records) {
-  const departmentCounts = { CAHP: 0, CNAM: 0, JHS: 0, SHS: 0, "Legacy JHS/SHS": 0 };
-  let totalIncidents = 0, groupsRequestedSum = 0;
-  records.forEach(function(record) { const department = record.Department === "JHS/SHS" ? "Legacy JHS/SHS" : record.Department; departmentCounts[department] = (departmentCounts[department] || 0) + 1; if (record.Incident.toLowerCase() === "yes") totalIncidents++; groupsRequestedSum += Number(record.GroupsRequested) || 0; });
-  const equipment = aggregateItems(records, "EquipmentBorrowed");
-  const consumables = aggregateItems(records, "ConsumablesBorrowed");
-  return { totalRecords: records.length, totalIncidents: totalIncidents, groupsRequestedSum: groupsRequestedSum, departmentCounts: departmentCounts, equipmentQuantityTotal: equipment.total, consumablesQuantityTotal: consumables.total, mostUsedEquipment: equipment.top, mostUsedConsumable: consumables.top };
-}
-
-function aggregateItems(records, field) {
-  const counts = {}, names = {}; let total = 0;
-  records.forEach(function(record) { parseItems(record[field]).forEach(function(item) { counts[item.key] = (counts[item.key] || 0) + item.qty; names[item.key] = names[item.key] || item.name; total += item.qty; }); });
-  let top = null; Object.keys(counts).forEach(function(key) { if (!top || counts[key] > top.quantity) top = { name: names[key], quantity: counts[key] }; });
-  return { total: total, top: top };
-}
-
-function parseItems(text) { return String(text || "").split(/[;\n]+/).map(function(part) { const match = part.trim().match(/^(.+?)(?:\s*[-:=]\s*)(\d+(?:\.\d+)?)/); const name = (match ? match[1] : part).trim(); return name ? { name: name, key: name.toLowerCase().replace(/\s+/g, " "), qty: match ? Number(match[2]) : 1 } : null; }).filter(Boolean); }
+function ensureDatabase_() { const spreadsheet = getSpreadsheet_(); return { logs: requireSheet_(spreadsheet, CONFIG.LOG_SHEET, LOG_HEADERS), borrowedItems: requireSheet_(spreadsheet, CONFIG.BORROWED_ITEMS_SHEET, BORROWED_ITEM_HEADERS), items: requireSheet_(spreadsheet, CONFIG.ITEMS_SHEET, ITEM_HEADERS) }; }
+function setupSheet_(spreadsheet, name, headers, formatter) { let sheet = spreadsheet.getSheetByName(name); const created = !sheet; if (!sheet) sheet = spreadsheet.insertSheet(name); const header = ensureHeaders_(sheet, headers); if (header.valid) formatter(sheet); return { sheet: name, created: created, headersCreated: header.created, headersRepaired: header.repaired, headersValid: header.valid, migrationRequired: !header.valid }; }
+function requireSheet_(spreadsheet, name, headers) { const sheet = spreadsheet.getSheetByName(name); if (!sheet) throw new Error(name + " has not been set up. Run setupDatabase() first."); if (!headersAreValid_(sheet, headers)) throw new Error(name + " has incompatible headers. Migration is required before API use."); return sheet; }
+function headersAreValid_(sheet, headers) { return sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0].map(String).join("|") === headers.join("|"); }
+function ensureHeaders_(sheet, headers) { if (headersAreValid_(sheet, headers)) return { valid: true, created: false, repaired: false }; const current = sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0].map(String); if (sheet.getLastRow() <= 1) { sheet.getRange(1, 1, 1, headers.length).setValues([headers]); return { valid: true, created: true, repaired: false }; } if (!current.every(function(value, index) { return !value || value === headers[index]; })) return { valid: false, created: false, repaired: false }; sheet.getRange(1, 1, 1, headers.length).setValues([headers]); return { valid: true, created: false, repaired: true }; }
+function formatHeader_(sheet, headers) { sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#0B3D91").setFontColor("#FFFFFF"); sheet.setFrozenRows(1); sheet.autoResizeColumns(1, headers.length); }
+function formatLogSheet_(sheet) { formatHeader_(sheet, LOG_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 2, rows, 1).setNumberFormat("yyyy-mm-dd hh:mm:ss"); sheet.getRange(2, 5, rows, 1).setNumberFormat("0.##"); [1, 3, 4, 6, 7].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
+function formatBorrowedItemsSheet_(sheet) { formatHeader_(sheet, BORROWED_ITEM_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 6, rows, 1).setNumberFormat("0.########"); [1, 2, 3, 4, 5, 7].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
+function formatItemsSheet_(sheet) { formatHeader_(sheet, ITEM_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); [1, 2, 3, 4].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
+function nextLogId_(sheet, date) { const day = Utilities.formatDate(date, CONFIG.TIMEZONE, "yyyyMMdd"), key = "logCounter:" + day, prefix = "LOG-" + day + "-", last = Number(PropertiesService.getScriptProperties().getProperty(key)) || findLargestId_(sheet, 1, new RegExp("^" + prefix + "(\\d+)$")), next = last + 1; PropertiesService.getScriptProperties().setProperty(key, String(next)); return prefix + ("0000" + next).slice(-4); }
+function nextItemLogId_(sheet) { const key = "borrowedItemCounter", last = Number(PropertiesService.getScriptProperties().getProperty(key)) || findLargestId_(sheet, 1, /^BI-(\d+)$/), next = last + 1; PropertiesService.getScriptProperties().setProperty(key, String(next)); return "BI-" + ("000000" + next).slice(-6); }
+function findLargestId_(sheet, column, pattern) { if (sheet.getLastRow() < 2) return 0; return sheet.getRange(2, column, sheet.getLastRow() - 1, 1).getDisplayValues().reduce(function(max, row) { const match = String(row[0]).match(pattern); return match ? Math.max(max, Number(match[1])) : max; }, 0); }
+function rollbackSubmission_(logSheet, logRow, itemSheet, itemStartRow, itemCount) { try { if (itemSheet && itemStartRow && itemCount && itemSheet.getLastRow() >= itemStartRow + itemCount - 1) itemSheet.deleteRows(itemStartRow, itemCount); if (logSheet && logRow && logSheet.getLastRow() >= logRow) logSheet.deleteRow(logRow); } catch (error) { console.error("Submission rollback failed: " + error); } }
+function groupItemsByLog_(items) { return items.reduce(function(result, item) { (result[item.LogID] = result[item.LogID] || []).push(item); return result; }, {}); }
+function isActive_(value) { return value === true || String(value).trim().toLowerCase() === "true" || String(value).trim() === "1" || String(value).trim().toLowerCase() === "yes"; }
 function getSpreadsheet_() { if (CONFIG.SPREADSHEET_ID === "PUT_SPREADSHEET_ID_HERE") throw new Error("SPREADSHEET_ID has not been configured."); return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
-function ensureDatabase_() { const sheet = getSpreadsheet_().getSheetByName(CONFIG.LOG_SHEET); if (!sheet) throw new Error("BorrowerLogs has not been set up. Run setupDatabase() from Apps Script first."); if (!headersAreValid_(sheet)) throw new Error("BorrowerLogs headers are invalid. Review getDatabaseStatus() before using the API."); return sheet; }
-function headersAreValid_(sheet) { return sheet.getRange(1, 1, 1, HEADERS.length).getDisplayValues()[0].map(String).join("|") === HEADERS.join("|"); }
-function ensureHeaders_(sheet) {
-  if (headersAreValid_(sheet)) return { valid: true, created: false, repaired: false };
-  const current = sheet.getRange(1, 1, 1, HEADERS.length).getDisplayValues()[0].map(String);
-  if (sheet.getLastRow() <= 1) { sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]); return { valid: true, created: true, repaired: false }; }
-  const safeToRepair = current.every(function(value, index) { return !value || value === HEADERS[index]; });
-  if (!safeToRepair) return { valid: false, created: false, repaired: false };
-  const repaired = current.some(function(value, index) { return value !== HEADERS[index]; });
-  if (repaired) sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-  return { valid: true, created: false, repaired: repaired };
-}
-function formatDatabaseSheet_(sheet) {
-  const header = sheet.getRange(1, 1, 1, HEADERS.length);
-  header.setFontWeight("bold").setBackground("#0B3D91").setFontColor("#FFFFFF");
-  sheet.setFrozenRows(1);
-  const rows = Math.max(1, sheet.getMaxRows() - 1);
-  sheet.getRange(2, 1, rows, 1).setNumberFormat("yyyy-mm-dd hh:mm:ss");
-  sheet.getRange(2, 4, rows, 1).setNumberFormat("0.##");
-  [5, 6, 8].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); });
-  sheet.autoResizeColumns(1, HEADERS.length);
-}
-function parseRequestBody(e) { if (!e || !e.postData || !e.postData.contents) throw new Error("Request body is missing."); return JSON.parse(e.postData.contents); }
-function parseDateParam(value, endOfDay) { if (!value) return null; const date = new Date(String(value) + (String(value).length === 10 ? (endOfDay ? "T23:59:59.999" : "T00:00:00") : "")); return isNaN(date.getTime()) ? null : date; }
-function normalizeText(value, maxLength) { return String(value == null ? "" : value).replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength); }
-function safeSheetText(value) { return /^[=+\-@]/.test(value) ? "'" + value : value; }
-function timestampString(date) { return Utilities.formatDate(date, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ssXXX"); }
+function parseRequestBody_(e) { if (!e || !e.postData || !e.postData.contents) throw new Error("Request body is missing."); return JSON.parse(e.postData.contents); }
+function parseDateParam_(value, endOfDay) { if (!value) return null; const date = new Date(String(value) + (String(value).length === 10 ? (endOfDay ? "T23:59:59.999+08:00" : "T00:00:00+08:00") : "")); return isNaN(date.getTime()) ? null : date; }
+function normalizeText_(value, maxLength) { return String(value == null ? "" : value).replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength); }
+function safeSheetText_(value) { return /^[=+\-@]/.test(value) ? "'" + value : value; }
+function timestampString_(date) { return Utilities.formatDate(date, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ssXXX"); }
 function jsonResponse(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
-function errorResponse(code, message) { return jsonResponse({ status: "error", code: code, message: message }); }
-function handleServerError(error) { console.error(error && error.stack ? error.stack : error); return errorResponse("SERVER_ERROR", "The service could not complete the request."); }
+function errorResponse_(code, message) { return jsonResponse({ status: "error", code: code, message: message }); }
+function handleServerError_(error) { console.error(error && error.stack ? error.stack : error); return errorResponse_("SERVER_ERROR", "The service could not complete the request."); }

@@ -231,8 +231,9 @@
           <table id="equipEntryTable">
             <thead>
               <tr>
-                <th style="width:70%;">Equipment</th>
-                <th style="width:20%;">Qty</th>
+                <th style="width:55%;">Equipment</th>
+                <th style="width:15%;">Qty</th>
+                <th style="width:20%;">Unit</th>
                 <th class="no-print" style="width:10%;">&nbsp;</th>
               </tr>
             </thead>
@@ -243,7 +244,6 @@
           <button class="btn secondary" type="button" id="addEquipRowBtn">+ Add equipment</button>
         </div>
 
-        <textarea id="fEquip" class="hidden" aria-hidden="true"></textarea>
       </div>
 
       <div class="field" style="flex: 1 1 380px;">
@@ -252,8 +252,9 @@
           <table id="consEntryTable">
             <thead>
               <tr>
-                <th style="width:70%;">Consumable</th>
-                <th style="width:20%;">Qty</th>
+                <th style="width:55%;">Consumable</th>
+                <th style="width:15%;">Qty</th>
+                <th style="width:20%;">Unit</th>
                 <th class="no-print" style="width:10%;">&nbsp;</th>
               </tr>
             </thead>
@@ -264,7 +265,6 @@
           <button class="btn secondary" type="button" id="addConsRowBtn">+ Add consumable</button>
         </div>
 
-        <textarea id="fCons" class="hidden" aria-hidden="true"></textarea>
       </div>
     </div>
 
@@ -588,6 +588,7 @@ window.addEventListener("DOMContentLoaded", () => {
   let allRows = [];
   let viewRows = [];
   let headers = [];
+  let itemCatalog = { equip: [], cons: [] };
 
   const el = (id) => document.getElementById(id);
 
@@ -629,137 +630,62 @@ window.addEventListener("DOMContentLoaded", () => {
 
   function addEntryRow(tbodyEl, kind){
     const tr = document.createElement("tr");
+    const itemCell = document.createElement("td");
+    const select = document.createElement("select");
+    select.className = `entry-input ${kind}-item`;
+    const blank = new Option("Select an item", "");
+    select.add(blank);
+    itemCatalog[kind].forEach(item => select.add(new Option(item.itemName, item.itemId)));
+    itemCell.appendChild(select);
 
-    tr.innerHTML = `
-      <td><input class="entry-input ${kind}-name" placeholder="${kind === "equip" ? "e.g., Microscope" : "e.g., Gloves"}" /></td>
-      <td><input class="entry-input ${kind}-qty" type="number" min="1" step="1" placeholder="1" /></td>
-      <td class="no-print">
-        <button type="button" class="btn danger ${kind}-remove" style="padding:8px 10px;">×</button>
-      </td>
-    `;
+    const quantityCell = document.createElement("td");
+    const quantity = document.createElement("input");
+    quantity.className = `entry-input ${kind}-qty`;
+    quantity.type = "number";
+    quantity.min = "0.01";
+    quantity.step = "any";
+    quantity.placeholder = "0";
+    quantityCell.appendChild(quantity);
 
-    tr.querySelector(`.${kind}-remove`).addEventListener("click", () => tr.remove());
+    const unitCell = document.createElement("td");
+    unitCell.className = `${kind}-unit muted`;
+    unitCell.textContent = "—";
+    const removeCell = document.createElement("td");
+    removeCell.className = "no-print";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn danger";
+    remove.textContent = "×";
+    remove.addEventListener("click", () => tr.remove());
+    removeCell.appendChild(remove);
+    select.addEventListener("change", () => {
+      const item = itemCatalog[kind].find(candidate => candidate.itemId === select.value);
+      unitCell.textContent = item ? item.unit : "—";
+      quantity.step = item && ["pcs", "set", "pair", "box", "pack", "bottle", "roll"].includes(item.unit) ? "1" : "any";
+    });
+    tr.append(itemCell, quantityCell, unitCell, removeCell);
     tbodyEl.appendChild(tr);
   }
 
-  function tableToText(kind){
-    const tableId = kind === "equip" ? "equipEntryTable" : "consEntryTable";
-    const table = el(tableId);
-    const rows = [...table.querySelectorAll("tbody tr")];
-
-    const parts = [];
-    for (const r of rows){
-      const name = r.querySelector(`.${kind}-name`)?.value?.trim() || "";
-      const qtyRaw = r.querySelector(`.${kind}-qty`)?.value?.trim() || "";
-      const qty = Number(qtyRaw);
-
-      if (!name) continue;
-      const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
-      parts.push(`${name} - ${safeQty}`);
+  function getStructuredItems(){
+    const itemsById = new Map();
+    for (const kind of ["equip", "cons"]){
+      const tableId = kind === "equip" ? "equipEntryTable" : "consEntryTable";
+      el(tableId).querySelectorAll("tbody tr").forEach(row => {
+        const itemId = row.querySelector(`.${kind}-item`).value;
+        const quantityRaw = row.querySelector(`.${kind}-qty`).value.trim();
+        if (!itemId && !quantityRaw) return;
+        const quantity = Number(quantityRaw);
+        if (!itemId || !Number.isFinite(quantity) || quantity <= 0) throw new Error("Select an item and enter a positive quantity for every completed row.");
+        itemsById.set(itemId, (itemsById.get(itemId) || 0) + quantity);
+      });
     }
-    return parts.join("; ");
-  }
-
-  function syncEntryTablesToHiddenTextareas(){
-    el("fEquip").value = tableToText("equip");
-    el("fCons").value  = tableToText("cons");
+    return [...itemsById].map(([itemId, quantity]) => ({ itemId, quantity }));
   }
 
   function clearEntryTables(){
     el("equipEntryTable").querySelector("tbody").innerHTML = "";
     el("consEntryTable").querySelector("tbody").innerHTML = "";
-  }
-
-  // =========================
-  // Parsing + aggregation for KPIs/Reports
-  // =========================
-
-  function normalizeItemName(s){
-    return String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
-  }
-
-  function parseItemList(text){
-    const raw = String(text || "").trim();
-    if (!raw) return [];
-
-    const chunks = raw
-      .replace(/,/g, ";")
-      .split(/[\n;]+/)
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    const items = [];
-
-    for (const chunk of chunks){
-      const explicit = chunk.match(/^(.+?)(?:\s*[-:=]\s*)(.+)$/);
-      if (explicit){
-        const nameRaw = explicit[1].trim();
-        const rhs = explicit[2].trim();
-        const qm = rhs.match(/^(\d+(?:\.\d+)?)/);
-        const qty = qm ? Number(qm[1]) : 1;
-
-        if (nameRaw){
-          items.push({
-            nameRaw,
-            nameKey: normalizeItemName(nameRaw),
-            qty: isFinite(qty) ? qty : 1,
-            unit: ""
-          });
-          continue;
-        }
-      }
-
-      const tokens = chunk.split(/\s+/).filter(Boolean);
-      let nameParts = [];
-      let foundAny = false;
-
-      for (const tok of tokens){
-        if (/^\d+(\.\d+)?$/.test(tok)){
-          const nameRaw = nameParts.join(" ").trim();
-          const qty = Number(tok);
-          if (nameRaw){
-            foundAny = true;
-            items.push({
-              nameRaw,
-              nameKey: normalizeItemName(nameRaw),
-              qty: isFinite(qty) ? qty : 1,
-              unit: ""
-            });
-          }
-          nameParts = [];
-        } else {
-          nameParts.push(tok);
-        }
-      }
-
-      const leftover = nameParts.join(" ").trim();
-      if (leftover){
-        items.push({
-          nameRaw: leftover,
-          nameKey: normalizeItemName(leftover),
-          qty: 1,
-          unit: ""
-        });
-      }
-
-      if (!foundAny && !leftover && chunk.trim()){
-        items.push({
-          nameRaw: chunk.trim(),
-          nameKey: normalizeItemName(chunk),
-          qty: 1,
-          unit: ""
-        });
-      }
-    }
-
-    return items;
-  }
-
-  function getEquipText(r){
-    return getField(r, "EquipmentBorrowed", "Equipment Borrowed", "Equipment Borrowed (optional)", "Equipment");
-  }
-  function getConsText(r){
-    return getField(r, "ConsumablesBorrowed", "Consumables Borrowed", "Consumables Borrowed (optional)", "Consumables");
   }
 
   function aggregateItemUsage(rows, type /* "equip"|"cons" */){
@@ -768,11 +694,12 @@ window.addEventListener("DOMContentLoaded", () => {
     const displayBy = new Map();
 
     for (const r of rows){
-      const list = parseItemList(type === "equip" ? getEquipText(r) : getConsText(r));
+      const list = Array.isArray(r.items) ? r.items.filter(item => item.Category === (type === "equip" ? "Equipment" : "Consumable")) : [];
       for (const it of list){
-        if (!displayBy.has(it.nameKey)) displayBy.set(it.nameKey, it.nameRaw);
-        qtyBy.set(it.nameKey, (qtyBy.get(it.nameKey) || 0) + (it.qty || 0));
-        mentionsBy.set(it.nameKey, (mentionsBy.get(it.nameKey) || 0) + 1);
+        const key = `${it.ItemID}|${it.Unit}`;
+        if (!displayBy.has(key)) displayBy.set(key, `${it.ItemName} (${it.Unit})`);
+        qtyBy.set(key, (qtyBy.get(key) || 0) + (Number(it.Quantity) || 0));
+        mentionsBy.set(key, (mentionsBy.get(key) || 0) + 1);
       }
     }
 
@@ -802,7 +729,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${it.name}</td>
-        <td>${Number(it.qty || 0).toFixed(0)}</td>
+        <td>${formatQuantity(it.qty)}</td>
         <td>${it.mentions}</td>
       `;
       tbody.appendChild(tr);
@@ -853,6 +780,10 @@ window.addEventListener("DOMContentLoaded", () => {
     return { total, incidents, groupsSum, cahp, cnam, jhs, shs, legacyJhssh };
   }
 
+  function formatQuantity(value){
+    return Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 8 });
+  }
+
   function renderKpis(rows){
     const { total, incidents, groupsSum, cahp, cnam, jhs, shs, legacyJhssh } = kpisFor(rows);
     el("kpiRecords").textContent = total;
@@ -870,10 +801,10 @@ window.addEventListener("DOMContentLoaded", () => {
     const eqAgg = aggregateItemUsage(rows, "equip");
     const coAgg = aggregateItemUsage(rows, "cons");
 
-    el("kpiEquipQty").textContent = Number(eqAgg.totalQty || 0).toFixed(0);
-    el("kpiConsQty").textContent = Number(coAgg.totalQty || 0).toFixed(0);
-    el("kpiTopEquip").textContent = eqAgg.top ? `${eqAgg.top.name} (${Number(eqAgg.top.qty).toFixed(0)})` : "—";
-    el("kpiTopCons").textContent = coAgg.top ? `${coAgg.top.name} (${Number(coAgg.top.qty).toFixed(0)})` : "—";
+    el("kpiEquipQty").textContent = formatQuantity(eqAgg.totalQty);
+    el("kpiConsQty").textContent = formatQuantity(coAgg.totalQty);
+    el("kpiTopEquip").textContent = eqAgg.top ? `${eqAgg.top.name} (${formatQuantity(eqAgg.top.qty)})` : "—";
+    el("kpiTopCons").textContent = coAgg.top ? `${coAgg.top.name} (${formatQuantity(coAgg.top.qty)})` : "—";
   }
 
   function renderAll(){
@@ -955,7 +886,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const result = await res.json();
       if (result.status !== "success" || !Array.isArray(result.data)) throw new Error(result.message || "The API returned an invalid record list.");
       allRows = result.data;
-      headers = ["Timestamp", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails"];
+      headers = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "Incident", "IncidentDetails"];
       viewRows = [...allRows];
       renderAll();
       populateFacultyDatalist();
@@ -979,8 +910,6 @@ window.addEventListener("DOMContentLoaded", () => {
     el("fDept").value = "CAHP";
     el("fFaculty").value = "";
     el("fGroups").value = "";
-    el("fEquip").value = "";
-    el("fCons").value = "";
     el("fIncident").value = "no";
     el("fIncidentDetails").value = "";
     setIncidentUI();
@@ -995,27 +924,40 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!API_URL || API_URL === "PUT_APPS_SCRIPT_EXEC_URL_HERE") throw new Error("Set API_URL to the deployed Apps Script /exec URL first.");
   }
 
-  async function submitLog(){
-    syncEntryTablesToHiddenTextareas();
+  async function loadItemCatalog(){
+    ensureApiConfigured();
+    const res = await fetch(`${API_URL}?action=items`, { cache:"no-store" });
+    if (!res.ok) throw new Error("The API could not load the item catalog.");
+    const result = await res.json();
+    if (result.status !== "success" || !Array.isArray(result.data)) throw new Error(result.message || "The API returned an invalid item catalog.");
+    itemCatalog = {
+      equip: result.data.filter(item => item.category === "Equipment"),
+      cons: result.data.filter(item => item.category === "Consumable")
+    };
+    clearEntryTables();
+    addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
+    addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
+  }
 
+  async function submitLog(){
     const dept = el("fDept").value.trim();
     const faculty = el("fFaculty").value.trim();
     const groups = el("fGroups").value.trim();
-    const equip = el("fEquip").value.trim();
-    const cons = el("fCons").value.trim();
     const incident = el("fIncident").value.trim();
     const incidentDetails = el("fIncidentDetails").value.trim();
+    let items;
 
     if (!faculty) { toast("Faculty Name is required."); return; }
-    if (!equip && !cons) { toast("Fill Equipment or Consumables (at least one)."); return; }
     if (incident === "yes" && !incidentDetails) { toast("Incident Details is required if incident = yes."); return; }
+    try { items = getStructuredItems(); } catch (error) { toast(error.message); return; }
+    if (!items.length) { toast("Add at least one equipment or consumable item."); return; }
 
     el("submitLogBtn").disabled = true;
     el("logStatus").textContent = "Submitting...";
     try {
       ensureApiConfigured();
       // text/plain avoids a CORS preflight for an Apps Script Web App.
-      const res = await fetch(API_URL, { method:"POST", body:JSON.stringify({ action:"submit", payload:{ department:dept, facultyName:faculty, groupsRequested:groups, equipmentBorrowed:equip, consumablesBorrowed:cons, incident, incidentDetails } }) });
+      const res = await fetch(API_URL, { method:"POST", body:JSON.stringify({ action:"submit", payload:{ department:dept, facultyName:faculty, groupsRequested:groups, incident, incidentDetails, items } }) });
       if (!res.ok) throw new Error("The API could not submit the borrower slip.");
       const result = await res.json();
       if (result.status !== "success") throw new Error(result.message || "The borrower slip was rejected.");
@@ -1097,8 +1039,8 @@ window.addEventListener("DOMContentLoaded", () => {
       return acc + (isFinite(v) ? v : 0);
     }, 0);
 
-    const eqNonEmpty = reportRows.filter(r => String(getEquipText(r)||"").trim() !== "").length;
-    const coNonEmpty = reportRows.filter(r => String(getConsText(r)||"").trim() !== "").length;
+    const eqNonEmpty = reportRows.filter(r => r.items?.some(item => item.Category === "Equipment")).length;
+    const coNonEmpty = reportRows.filter(r => r.items?.some(item => item.Category === "Consumable")).length;
 
     el("rRecords").textContent = reportRows.length;
     el("rIncidents").textContent = incidents.length;
@@ -1120,10 +1062,10 @@ window.addEventListener("DOMContentLoaded", () => {
     const eqAgg = aggregateItemUsage(reportRows, "equip");
     const coAgg = aggregateItemUsage(reportRows, "cons");
 
-    el("rEquipQty").textContent = Number(eqAgg.totalQty || 0).toFixed(0);
-    el("rConsQty").textContent = Number(coAgg.totalQty || 0).toFixed(0);
-    el("rTopEquip").textContent = eqAgg.top ? `${eqAgg.top.name} (${Number(eqAgg.top.qty).toFixed(0)})` : "—";
-    el("rTopCons").textContent = coAgg.top ? `${coAgg.top.name} (${Number(coAgg.top.qty).toFixed(0)})` : "—";
+    el("rEquipQty").textContent = formatQuantity(eqAgg.totalQty);
+    el("rConsQty").textContent = formatQuantity(coAgg.totalQty);
+    el("rTopEquip").textContent = eqAgg.top ? `${eqAgg.top.name} (${formatQuantity(eqAgg.top.qty)})` : "—";
+    el("rTopCons").textContent = coAgg.top ? `${coAgg.top.name} (${formatQuantity(coAgg.top.qty)})` : "—";
 
     renderTopTable(el("equipReport"), eqAgg.items, 15);
     renderTopTable(el("consReport"), coAgg.items, 15);
@@ -1169,6 +1111,9 @@ window.addEventListener("DOMContentLoaded", () => {
   addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
   addEntryRow(el("consEntryTable").querySelector("tbody"), "cons");
 
+  loadItemCatalog().catch(error => {
+    el("logStatus").textContent = error.message || "Unable to load the item catalog.";
+  });
   loadData();
 });
 </script>
