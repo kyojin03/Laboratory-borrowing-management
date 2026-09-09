@@ -524,12 +524,13 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   function getUniqueFacultyNames(rows){
-    const set = new Set();
+    const namesByKey = new Map();
     for (const r of rows){
       const full = String(getField(r, "FacultyName", "FACULTY NAME", "Faculty Name") || "").trim();
-      if (full) set.add(full);
+      const key = normalizeName(full);
+      if (key && !namesByKey.has(key)) namesByKey.set(key, full);
     }
-    return [...set].sort((a,b) => a.localeCompare(b));
+    return [...namesByKey.values()].sort((a,b) => a.localeCompare(b));
   }
 
   function populateFacultyDatalist(){
@@ -575,10 +576,11 @@ window.addEventListener("DOMContentLoaded", () => {
   function updateReportFacultyLine(){
     const q = el("faculty").value.trim();
     const best = getBestFacultyFullName(q, (viewRows && viewRows.length) ? viewRows : allRows);
-
-    el("reportFacultyPrint").textContent = q
-      ? `Faculty: ${best || q}`
-      : "";
+    const department = el("dept").value.trim();
+    const parts = [];
+    if (q) parts.push(`Faculty: ${best || q}`);
+    if (department) parts.push(`Department: ${department}`);
+    el("reportFacultyPrint").textContent = parts.join(" • ");
   }
 
   // Paste the deployed Apps Script Web App /exec URL here after deployment.
@@ -823,14 +825,14 @@ window.addEventListener("DOMContentLoaded", () => {
 
   function applyFilters() {
     const dept = el("dept").value.trim().toLowerCase();
-    const fac = el("faculty").value.trim().toLowerCase();
+    const fac = normalizeName(el("faculty").value);
     const from = el("fromDate").value ? new Date(el("fromDate").value) : null;
     const to = el("toDate").value ? new Date(el("toDate").value) : null;
     const toEnd = to ? new Date(to.getTime() + 24*60*60*1000 - 1) : null;
 
     viewRows = allRows.filter(r => {
       const rDept = getField(r, "Department").trim().toLowerCase();
-      const rFac  = getField(r, "FacultyName", "FACULTY NAME", "Faculty Name").trim().toLowerCase();
+      const rFac  = normalizeName(getField(r, "FacultyName", "FACULTY NAME", "Faculty Name"));
       const d = parseTimestamp(getField(r, "Timestamp"));
 
       if (dept && rDept !== dept) return false;
