@@ -887,7 +887,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const result = await res.json();
       if (result.status !== "success" || !Array.isArray(result.data)) throw new Error(result.message || "The API returned an invalid record list.");
       allRows = result.data;
-      headers = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "Incident", "IncidentDetails"];
+      headers = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails"];
       viewRows = [...allRows];
       renderAll();
       populateFacultyDatalist();

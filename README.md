@@ -1,21 +1,21 @@
 # Laboratory Borrowing Management
 
-Static GitHub Pages frontend with a Google Apps Script Web App and Google Sheets database. Do not deploy the Apps Script backend until the database setup and item catalog below are complete.
+Static GitHub Pages frontend with a Google Apps Script Web App and Google Sheets database.
 
 ## Architecture
 
 `GitHub Pages (index.html) -> Apps Script Web App -> Google Sheets`
 
-The browser sends structured JSON. Users enter item name, decimal quantity, and unit; Apps Script derives category from the Equipment or Consumables section.
+The browser sends structured JSON. Equipment uses a whole-number quantity with no unit; consumables use decimal-capable quantity and a free-text unit. Apps Script derives category from the section.
 
 ## Database schema
 
 `setupDatabase()` creates these sheets automatically when they are absent:
 
-- `BorrowerLogs`: `LogID`, `Timestamp`, `Department`, `FacultyName`, `GroupsRequested`, `Incident`, `IncidentDetails`
+- `BorrowerLogs`: `LogID`, `Timestamp`, `Department`, `FacultyName`, `GroupsRequested`, `EquipmentBorrowed`, `ConsumablesBorrowed`, `Incident`, `IncidentDetails`
 - `BorrowedItems`: `ItemLogID`, `LogID`, `ItemName`, `Category`, `Quantity`, `Unit`
 
-Each successful submission writes one `BorrowerLogs` row and one `BorrowedItems` row for every item. IDs are generated server-side, for example `LOG-20260909-0001` and `BI-000001`.
+Each successful submission writes one human-readable `BorrowerLogs` row, with its equipment and consumables summarized as text, plus one structured `BorrowedItems` row for every item. IDs are generated server-side, for example `LOG-20260909-0001` and `BI-000001`.
 
 Units are free text and may be any nonblank value. New departments are `CAHP`, `CNAM`, `JHS`, and `SHS`.
 

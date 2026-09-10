@@ -1,6 +1,6 @@
 /** GSC Laboratory Borrowing Web App API. Configure before deployment. */
 const CONFIG = { SPREADSHEET_ID: "1d9qdSVwM8JyNu3WakWAEri4z3AspLYz5iPvsWX1FaG4", TIMEZONE: "Asia/Manila", LOG_SHEET: "BorrowerLogs", BORROWED_ITEMS_SHEET: "BorrowedItems" };
-const LOG_HEADERS = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "Incident", "IncidentDetails"];
+const LOG_HEADERS = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails"];
 const BORROWED_ITEM_HEADERS = ["ItemLogID", "LogID", "ItemName", "Category", "Quantity", "Unit"];
 const VALID_DEPARTMENTS = ["CAHP", "CNAM", "JHS", "SHS"];
 const MAX_LENGTHS = { facultyName: 200, incidentDetails: 2000, itemName: 300, unit: 100 };
@@ -65,7 +65,7 @@ function submitLog_(payload) {
     const itemRows = validated.items.map(function(item) { return [nextItemLogId_(itemSheet), logId, item.itemName, item.category, item.quantity, item.unit]; });
     // All validation occurs before writing. The script lock and rollback make this a logical transaction.
     logRow = logSheet.getLastRow() + 1;
-    logSheet.getRange(logRow, 1, 1, LOG_HEADERS.length).setValues([[logId, now, validated.department, validated.facultyName, validated.groupsRequested, validated.incident, validated.incidentDetails]]);
+    logSheet.getRange(logRow, 1, 1, LOG_HEADERS.length).setValues([[logId, now, validated.department, validated.facultyName, validated.groupsRequested, formatBorrowedItems_(validated.items, "Equipment"), formatBorrowedItems_(validated.items, "Consumable"), validated.incident, validated.incidentDetails]]);
     itemStartRow = itemSheet.getLastRow() + 1; itemCount = itemRows.length;
     itemSheet.getRange(itemStartRow, 1, itemCount, BORROWED_ITEM_HEADERS.length).setValues(itemRows);
     return jsonResponse({ status: "success", message: "Borrower slip recorded.", logId: logId });
@@ -86,7 +86,7 @@ function listLogs_(params) {
   const itemMap = groupItemsByLog_(readBorrowedItems_());
   return logs.map(function(log) { log.items = itemMap[log.LogID] || []; return log; });
 }
-function readLogs_() { const sheet = ensureDatabase_().logs; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, LOG_HEADERS.length).getValues().map(function(row) { return { LogID: String(row[0] || ""), Timestamp: row[1] instanceof Date ? timestampString_(row[1]) : String(row[1] || ""), Department: String(row[2] || ""), FacultyName: String(row[3] || ""), GroupsRequested: String(row[4] || ""), Incident: String(row[5] || ""), IncidentDetails: String(row[6] || "") }; }); }
+function readLogs_() { const sheet = ensureDatabase_().logs; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, LOG_HEADERS.length).getValues().map(function(row) { return { LogID: String(row[0] || ""), Timestamp: row[1] instanceof Date ? timestampString_(row[1]) : String(row[1] || ""), Department: String(row[2] || ""), FacultyName: String(row[3] || ""), GroupsRequested: String(row[4] || ""), EquipmentBorrowed: String(row[5] || ""), ConsumablesBorrowed: String(row[6] || ""), Incident: String(row[7] || ""), IncidentDetails: String(row[8] || "") }; }); }
 function readBorrowedItems_() { const sheet = ensureDatabase_().borrowedItems; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, BORROWED_ITEM_HEADERS.length).getValues().map(function(row) { return { ItemLogID: String(row[0] || ""), LogID: String(row[1] || ""), ItemName: String(row[2] || ""), Category: String(row[3] || ""), Quantity: Number(row[4]) || 0, Unit: String(row[5] || "") }; }); }
 
 function validateSubmission_(payload) {
@@ -122,13 +122,14 @@ function requireSheet_(spreadsheet, name, headers) { const sheet = spreadsheet.g
 function headersAreValid_(sheet, headers) { return sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0].map(String).join("|") === headers.join("|"); }
 function ensureHeaders_(sheet, headers) { if (headersAreValid_(sheet, headers)) return { valid: true, created: false, repaired: false }; const current = sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0].map(String); if (sheet.getLastRow() <= 1) { sheet.getRange(1, 1, 1, headers.length).setValues([headers]); return { valid: true, created: true, repaired: false }; } if (!current.every(function(value, index) { return !value || value === headers[index]; })) return { valid: false, created: false, repaired: false }; sheet.getRange(1, 1, 1, headers.length).setValues([headers]); return { valid: true, created: false, repaired: true }; }
 function formatHeader_(sheet, headers) { sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#0B3D91").setFontColor("#FFFFFF"); sheet.setFrozenRows(1); sheet.autoResizeColumns(1, headers.length); }
-function formatLogSheet_(sheet) { formatHeader_(sheet, LOG_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 2, rows, 1).setNumberFormat("yyyy-mm-dd hh:mm:ss"); sheet.getRange(2, 5, rows, 1).setNumberFormat("0.##"); [1, 3, 4, 6, 7].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
+function formatLogSheet_(sheet) { formatHeader_(sheet, LOG_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 2, rows, 1).setNumberFormat("yyyy-mm-dd hh:mm:ss"); sheet.getRange(2, 5, rows, 1).setNumberFormat("0.##"); [1, 3, 4, 6, 7, 8, 9].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
 function formatBorrowedItemsSheet_(sheet) { formatHeader_(sheet, BORROWED_ITEM_HEADERS); const rows = Math.max(1, sheet.getMaxRows() - 1); sheet.getRange(2, 5, rows, 1).setNumberFormat("0.########"); [1, 2, 3, 4, 6].forEach(function(column) { sheet.getRange(2, column, rows, 1).setNumberFormat("@"); }); }
 function nextLogId_(sheet, date) { const day = Utilities.formatDate(date, CONFIG.TIMEZONE, "yyyyMMdd"), key = "logCounter:" + day, prefix = "LOG-" + day + "-", last = Number(PropertiesService.getScriptProperties().getProperty(key)) || findLargestId_(sheet, 1, new RegExp("^" + prefix + "(\\d+)$")), next = last + 1; PropertiesService.getScriptProperties().setProperty(key, String(next)); return prefix + ("0000" + next).slice(-4); }
 function nextItemLogId_(sheet) { const key = "borrowedItemCounter", last = Number(PropertiesService.getScriptProperties().getProperty(key)) || findLargestId_(sheet, 1, /^BI-(\d+)$/), next = last + 1; PropertiesService.getScriptProperties().setProperty(key, String(next)); return "BI-" + ("000000" + next).slice(-6); }
 function findLargestId_(sheet, column, pattern) { if (sheet.getLastRow() < 2) return 0; return sheet.getRange(2, column, sheet.getLastRow() - 1, 1).getDisplayValues().reduce(function(max, row) { const match = String(row[0]).match(pattern); return match ? Math.max(max, Number(match[1])) : max; }, 0); }
 function rollbackSubmission_(logSheet, logRow, itemSheet, itemStartRow, itemCount) { try { if (itemSheet && itemStartRow && itemCount && itemSheet.getLastRow() >= itemStartRow + itemCount - 1) itemSheet.deleteRows(itemStartRow, itemCount); if (logSheet && logRow && logSheet.getLastRow() >= logRow) logSheet.deleteRow(logRow); } catch (error) { console.error("Submission rollback failed: " + error); } }
 function groupItemsByLog_(items) { return items.reduce(function(result, item) { (result[item.LogID] = result[item.LogID] || []).push(item); return result; }, {}); }
+function formatBorrowedItems_(items, category) { return items.filter(function(item) { return item.category === category; }).map(function(item) { return item.itemName + " (" + item.quantity + (item.unit ? " " + item.unit : "") + ")"; }).join("; "); }
 function getSpreadsheet_() { if (CONFIG.SPREADSHEET_ID === "PUT_SPREADSHEET_ID_HERE") throw new Error("SPREADSHEET_ID has not been configured."); return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID); }
 function parseRequestBody_(e) { if (!e || !e.postData || !e.postData.contents) throw new Error("Request body is missing."); return JSON.parse(e.postData.contents); }
 function parseDateParam_(value, endOfDay) { if (!value) return null; const date = new Date(String(value) + (String(value).length === 10 ? (endOfDay ? "T23:59:59.999+08:00" : "T00:00:00+08:00") : "")); return isNaN(date.getTime()) ? null : date; }
