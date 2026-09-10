@@ -1,6 +1,6 @@
 /** GSC Laboratory Borrowing Web App API. Configure before deployment. */
 const CONFIG = { SPREADSHEET_ID: "1d9qdSVwM8JyNu3WakWAEri4z3AspLYz5iPvsWX1FaG4", TIMEZONE: "Asia/Manila", LOG_SHEET: "BorrowerLogs", BORROWED_ITEMS_SHEET: "BorrowedItems" };
-const LOG_HEADERS = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails"];
+const LOG_HEADERS = ["LogID", "Timestamp", "DateBorrowed", "DateReturned", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails", "InjuryOccurred", "InjuryDetails"];
 const BORROWED_ITEM_HEADERS = ["ItemLogID", "LogID", "ItemName", "Category", "Quantity", "Unit"];
 const VALID_DEPARTMENTS = ["CAHP", "CNAM", "JHS", "SHS"];
 const MAX_LENGTHS = { facultyName: 200, incidentDetails: 2000, itemName: 300, unit: 100 };
@@ -65,7 +65,7 @@ function submitLog_(payload) {
     const itemRows = validated.items.map(function(item) { return [nextItemLogId_(itemSheet), logId, item.itemName, item.category, item.quantity, item.unit]; });
     // All validation occurs before writing. The script lock and rollback make this a logical transaction.
     logRow = logSheet.getLastRow() + 1;
-    logSheet.getRange(logRow, 1, 1, LOG_HEADERS.length).setValues([[logId, now, validated.department, validated.facultyName, validated.groupsRequested, formatBorrowedItems_(validated.items, "Equipment"), formatBorrowedItems_(validated.items, "Consumable"), validated.incident, validated.incidentDetails]]);
+    logSheet.getRange(logRow, 1, 1, LOG_HEADERS.length).setValues([[logId, now, validated.dateBorrowed, validated.dateReturned, validated.department, validated.facultyName, validated.groupsRequested, formatBorrowedItems_(validated.items, "Equipment"), formatBorrowedItems_(validated.items, "Consumable"), validated.incident, validated.incidentDetails, validated.injuryOccurred, validated.injuryDetails]]);
     itemStartRow = itemSheet.getLastRow() + 1; itemCount = itemRows.length;
     itemSheet.getRange(itemStartRow, 1, itemCount, BORROWED_ITEM_HEADERS.length).setValues(itemRows);
     return jsonResponse({ status: "success", message: "Borrower slip recorded.", logId: logId });
@@ -86,17 +86,21 @@ function listLogs_(params) {
   const itemMap = groupItemsByLog_(readBorrowedItems_());
   return logs.map(function(log) { log.items = itemMap[log.LogID] || []; return log; });
 }
-function readLogs_() { const sheet = ensureDatabase_().logs; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, LOG_HEADERS.length).getValues().map(function(row) { return { LogID: String(row[0] || ""), Timestamp: row[1] instanceof Date ? timestampString_(row[1]) : String(row[1] || ""), Department: String(row[2] || ""), FacultyName: String(row[3] || ""), GroupsRequested: String(row[4] || ""), EquipmentBorrowed: String(row[5] || ""), ConsumablesBorrowed: String(row[6] || ""), Incident: String(row[7] || ""), IncidentDetails: String(row[8] || "") }; }); }
+function readLogs_() { const sheet = ensureDatabase_().logs; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, LOG_HEADERS.length).getValues().map(function(row) { return { LogID: String(row[0] || ""), Timestamp: row[1] instanceof Date ? timestampString_(row[1]) : String(row[1] || ""), DateBorrowed: String(row[2] || ""), DateReturned: String(row[3] || ""), Department: String(row[4] || ""), FacultyName: String(row[5] || ""), GroupsRequested: String(row[6] || ""), EquipmentBorrowed: String(row[7] || ""), ConsumablesBorrowed: String(row[8] || ""), Incident: String(row[9] || ""), IncidentDetails: String(row[10] || ""), InjuryOccurred: String(row[11] || ""), InjuryDetails: String(row[12] || "") }; }); }
 function readBorrowedItems_() { const sheet = ensureDatabase_().borrowedItems; if (sheet.getLastRow() < 2) return []; return sheet.getRange(2, 1, sheet.getLastRow() - 1, BORROWED_ITEM_HEADERS.length).getValues().map(function(row) { return { ItemLogID: String(row[0] || ""), LogID: String(row[1] || ""), ItemName: String(row[2] || ""), Category: String(row[3] || ""), Quantity: Number(row[4]) || 0, Unit: String(row[5] || "") }; }); }
 
 function validateSubmission_(payload) {
   if (!payload || typeof payload !== "object") return { error: "A submission payload is required." };
-  const department = normalizeText_(payload.department, 20).toUpperCase(), facultyName = safeSheetText_(normalizeText_(payload.facultyName, MAX_LENGTHS.facultyName)), groupsRequested = payload.groupsRequested === "" || payload.groupsRequested == null ? "" : Number(payload.groupsRequested), incident = normalizeText_(payload.incident, 3).toLowerCase(), incidentDetails = safeSheetText_(normalizeText_(payload.incidentDetails, MAX_LENGTHS.incidentDetails));
+  const department = normalizeText_(payload.department, 20).toUpperCase(), facultyName = safeSheetText_(normalizeText_(payload.facultyName, MAX_LENGTHS.facultyName)), groupsRequested = payload.groupsRequested === "" || payload.groupsRequested == null ? "" : Number(payload.groupsRequested), incident = normalizeText_(payload.incident, 3).toLowerCase(), incidentDetails = safeSheetText_(normalizeText_(payload.incidentDetails, MAX_LENGTHS.incidentDetails)), dateBorrowed = normalizeText_(payload.dateBorrowed, 10), dateReturned = normalizeText_(payload.dateReturned, 10), injuryOccurred = normalizeText_(payload.injuryOccurred, 3).toLowerCase(), injuryDetails = safeSheetText_(normalizeText_(payload.injuryDetails, MAX_LENGTHS.incidentDetails));
   if (VALID_DEPARTMENTS.indexOf(department) === -1) return { error: "Department must be CAHP, CNAM, JHS, or SHS." };
   if (!facultyName) return { error: "Faculty name is required." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateBorrowed)) return { error: "Date borrowed is required." };
+  if (dateReturned && (!/^\d{4}-\d{2}-\d{2}$/.test(dateReturned) || dateReturned < dateBorrowed)) return { error: "Date returned cannot be earlier than date borrowed." };
   if (groupsRequested !== "" && (!isFinite(groupsRequested) || groupsRequested <= 0 || groupsRequested > MAX_QUANTITY)) return { error: "Groups requested must be a positive number within the allowed range." };
   if (incident !== "yes" && incident !== "no") return { error: "Incident must be yes or no." };
   if (incident === "yes" && !incidentDetails) return { error: "Incident details are required when incident is yes." };
+  if (injuryOccurred !== "yes" && injuryOccurred !== "no") return { error: "Injury occurred must be yes or no." };
+  if (injuryOccurred === "yes" && !injuryDetails) return { error: "Injury details are required when injury occurred is yes." };
   const items = [];
   [[payload.equipment, "Equipment"], [payload.consumables, "Consumable"]].forEach(function(section) {
     if (section[0] != null && !Array.isArray(section[0])) throw new Error("Invalid item section.");
@@ -111,7 +115,7 @@ function validateSubmission_(payload) {
     });
   });
   if (!items.length) return { error: "At least one borrowed item is required." };
-  return { department: department, facultyName: facultyName, groupsRequested: groupsRequested, incident: incident, incidentDetails: incidentDetails, items: items };
+  return { department: department, facultyName: facultyName, groupsRequested: groupsRequested, dateBorrowed: dateBorrowed, dateReturned: dateReturned, incident: incident, incidentDetails: incidentDetails, injuryOccurred: injuryOccurred, injuryDetails: injuryDetails, items: items };
 }
 function calculateStats_(logs, borrowedItems) { const counts = { CAHP: 0, CNAM: 0, JHS: 0, SHS: 0, "Legacy JHS/SHS": 0 }; let incidents = 0, groups = 0; logs.forEach(function(log) { const department = log.Department === "JHS/SHS" ? "Legacy JHS/SHS" : log.Department; counts[department] = (counts[department] || 0) + 1; if (String(log.Incident).toLowerCase() === "yes") incidents++; groups += Number(log.GroupsRequested) || 0; }); return { totalRecords: logs.length, totalIncidents: incidents, groupsRequestedSum: groups, departmentCounts: counts, itemUsage: aggregateItems_(borrowedItems) }; }
 function aggregateItems_(items) { const totals = {}; items.forEach(function(item) { const name = normalizeText_(item.ItemName, MAX_LENGTHS.itemName), unit = normalizeText_(item.Unit, MAX_LENGTHS.unit), key = [name.toLowerCase(), item.Category, unit.toLowerCase()].join("|"); if (!totals[key]) totals[key] = { itemName: name, category: item.Category, unit: unit, quantity: 0 }; totals[key].quantity += Number(item.Quantity) || 0; }); return Object.keys(totals).map(function(key) { return totals[key]; }).sort(function(a, b) { return b.quantity - a.quantity || a.itemName.localeCompare(b.itemName); }); }

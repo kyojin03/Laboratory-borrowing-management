@@ -221,6 +221,8 @@
         <label>Number of Groups Requested (optional)</label>
         <input id="fGroups" type="number" min="1" placeholder="e.g., 5" />
       </div>
+      <div class="field"><label>Date Borrowed</label><input id="fDateBorrowed" type="date" required /></div>
+      <div class="field"><label>Date Returned (optional)</label><input id="fDateReturned" type="date" /></div>
     </div>
 
     <!-- TABLE INPUTS (Equipment + Consumables) -->
@@ -280,6 +282,11 @@
         <label>Incident Details (required if yes)</label>
         <input id="fIncidentDetails" placeholder="Describe the incident..." />
       </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <label><input id="fInjuryOccurred" type="checkbox" /> Injury Occurred</label>
+      <div class="field hidden" id="injuryDetailsWrap"><label>Injury Details</label><textarea id="fInjuryDetails" placeholder="Describe the injury..."></textarea></div>
     </div>
 
     <div class="row no-print" style="margin-top:12px;">
@@ -833,7 +840,7 @@ window.addEventListener("DOMContentLoaded", () => {
     viewRows = allRows.filter(r => {
       const rDept = getField(r, "Department").trim().toLowerCase();
       const rFac  = normalizeName(getField(r, "FacultyName", "FACULTY NAME", "Faculty Name"));
-      const d = parseTimestamp(getField(r, "Timestamp"));
+      const d = parseTimestamp(getField(r, "DateBorrowed", "Timestamp"));
 
       if (dept && rDept !== dept) return false;
       if (fac && !rFac.includes(fac)) return false;
@@ -887,7 +894,7 @@ window.addEventListener("DOMContentLoaded", () => {
       const result = await res.json();
       if (result.status !== "success" || !Array.isArray(result.data)) throw new Error(result.message || "The API returned an invalid record list.");
       allRows = result.data;
-      headers = ["LogID", "Timestamp", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails"];
+      headers = ["LogID", "Timestamp", "DateBorrowed", "DateReturned", "Department", "FacultyName", "GroupsRequested", "EquipmentBorrowed", "ConsumablesBorrowed", "Incident", "IncidentDetails", "InjuryOccurred", "InjuryDetails"];
       viewRows = [...allRows];
       renderAll();
       populateFacultyDatalist();
@@ -924,18 +931,25 @@ window.addEventListener("DOMContentLoaded", () => {
   function ensureApiConfigured(){
     if (!API_URL) throw new Error("The production API URL is not configured.");
   }
+  function setInjuryUI(){ const yes = el("fInjuryOccurred").checked; el("injuryDetailsWrap").classList.toggle("hidden", !yes); if (!yes) el("fInjuryDetails").value = ""; }
 
 
   async function submitLog(){
     const dept = el("fDept").value.trim();
     const faculty = el("fFaculty").value.trim();
     const groups = el("fGroups").value.trim();
+    const dateBorrowed = el("fDateBorrowed").value;
+    const dateReturned = el("fDateReturned").value;
     const incident = el("fIncident").value.trim();
     const incidentDetails = el("fIncidentDetails").value.trim();
+    const injuryOccurred = el("fInjuryOccurred").checked ? "yes" : "no";
+    const injuryDetails = el("fInjuryDetails").value.trim();
     let itemSections;
 
     if (!faculty) { toast("Faculty Name is required."); return; }
+    if (!dateBorrowed || (dateReturned && dateReturned < dateBorrowed)) { toast("Enter Date Borrowed; Date Returned cannot be earlier."); return; }
     if (incident === "yes" && !incidentDetails) { toast("Incident Details is required if incident = yes."); return; }
+    if (injuryOccurred === "yes" && !injuryDetails) { toast("Injury Details is required if injury occurred."); return; }
     try { itemSections = getStructuredItems(); } catch (error) { toast(error.message); return; }
     if (!itemSections.equipment.length && !itemSections.consumables.length) { toast("Add at least one equipment or consumable item."); return; }
 
@@ -944,7 +958,7 @@ window.addEventListener("DOMContentLoaded", () => {
     try {
       ensureApiConfigured();
       // text/plain avoids a CORS preflight for an Apps Script Web App.
-      const res = await fetch(API_URL, { method:"POST", body:JSON.stringify({ action:"submit", payload:{ department:dept, facultyName:faculty, groupsRequested:groups, incident, incidentDetails, ...itemSections } }) });
+      const res = await fetch(API_URL, { method:"POST", body:JSON.stringify({ action:"submit", payload:{ department:dept, facultyName:faculty, groupsRequested:groups, dateBorrowed, dateReturned, incident, incidentDetails, injuryOccurred, injuryDetails, ...itemSections } }) });
       if (!res.ok) throw new Error("The API could not submit the borrower slip.");
       const result = await res.json();
       if (result.status !== "success") throw new Error(result.message || "The borrower slip was rejected.");
@@ -1006,7 +1020,7 @@ window.addEventListener("DOMContentLoaded", () => {
   function rowsInRange(rows, from, to){
     if (!from || !to) return [...rows];
     return rows.filter(r => {
-      const d = parseTimestamp(getField(r, "Timestamp"));
+      const d = parseTimestamp(getField(r, "DateBorrowed", "Timestamp"));
       if (!d) return false;
       return d >= from && d <= to;
     });
@@ -1072,6 +1086,7 @@ window.addEventListener("DOMContentLoaded", () => {
   el("exportBtn").addEventListener("click", () => exportCSV(viewRows));
   el("resetBtn").addEventListener("click", resetFilters);
   el("fIncident").addEventListener("change", setIncidentUI);
+  el("fInjuryOccurred").addEventListener("change", setInjuryUI);
   el("submitLogBtn").addEventListener("click", submitLog);
   el("clearLogBtn").addEventListener("click", clearLogForm);
 
@@ -1093,6 +1108,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Init
   setIncidentUI();
+  setInjuryUI();
   setActiveTab("log");
 
   addEntryRow(el("equipEntryTable").querySelector("tbody"), "equip");
